@@ -37,6 +37,9 @@ const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const NONCE = /^[0-9a-f]{64}$/;
 const BOOT_KEYS = ["tag", "bridge_nonce", "generation", "parent_origin"];
 
+/** Diagnosis only: the last channel message this receiver saw. Never rendered. */
+export const channelDebug = { count: 0, op: null, error: null, sample: null };
+
 const str = (value, max) => typeof value === "string" && value.length <= max;
 const epoch = (value) => value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
 const row = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -147,10 +150,16 @@ export function createReceiver(onProjection, doc = document) {
   const state = { ready: false, sent: null };
 
   channel.port1.onmessage = (event) => {
+    channelDebug.count += 1;
+    channelDebug.op = row(event.data) ? String(event.data.op) : typeof event.data;
     try {
       onProjection(readPush(event.data));
-    } catch {
-      // A malformed or unknown push never becomes rendered content.
+      channelDebug.error = null;
+    } catch (error) {
+      // A malformed or unknown push never becomes rendered content — but it is
+      // recorded here, so a silent drop is diagnosable instead of invisible.
+      channelDebug.error = String((error && error.message) || error);
+      try { channelDebug.sample = JSON.stringify(event.data).slice(0, 600); } catch { channelDebug.sample = null; }
     }
   };
   channel.port1.start?.();

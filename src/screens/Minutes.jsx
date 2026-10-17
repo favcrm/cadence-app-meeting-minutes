@@ -73,7 +73,14 @@ export default function Minutes({ hostData }) {
   const [snapshot, setSnapshot] = useState(() => hostData.read());
   const [open, setOpen] = useState(null);
 
-  useEffect(() => hostData.subscribe(setSnapshot), [hostData]);
+  useEffect(() => {
+    // The host pushes once, right after the handshake, so a push can land
+    // before this effect subscribes — `attach` would then notify an empty
+    // listener set and the first render's empty snapshot would stick. Re-read
+    // on subscribe so the store always wins over the initial render.
+    setSnapshot(hostData.read());
+    return hostData.subscribe(setSnapshot);
+  }, [hostData]);
 
   const meetings = snapshot.meetings;
   const selected = meetings.find((meeting) => meeting.id === open) ?? null;

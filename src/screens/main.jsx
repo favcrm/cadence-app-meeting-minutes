@@ -13,7 +13,7 @@ import { createRoot } from "react-dom/client";
 import "./style.css";
 import Minutes from "./Minutes.jsx";
 import { createHostData } from "./host-data.mjs";
-import { createReceiver } from "./receiver.mjs";
+import { channelDebug, createReceiver } from "./receiver.mjs";
 
 // Honour the host theme pick the way the board does.
 try {
@@ -43,6 +43,7 @@ try {
     attach: (projection) => hostData.attach(projection),
     read: () => hostData.read(),
     generation: receiver.boot.generation,
+    debug: () => ({ ...channelDebug }),
   };
 } catch (error) {
   // No bridge (a local `index.html` verification page): the screen shows its
