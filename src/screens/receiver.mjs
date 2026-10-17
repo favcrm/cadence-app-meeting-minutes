@@ -161,14 +161,19 @@ export function createReceiver(onProjection, doc = document) {
     [channel.port2],
   );
 
-  window.parent.postMessage({ v: 1, op: "ready" }, boot.parent_origin);
+  // `ready` and `state` are CHANNEL messages, never window messages: the host
+  // parses them on its side of the port (`screenProtocol`'s ChildToHost union),
+  // and a `ready` it never sees leaves the frame forever unready — the wrapper
+  // stays hidden, nothing is pushed, and nothing errors. `accepts` announces
+  // the v2 projection this screen is built for.
+  channel.port1.postMessage({ v: 1, op: "ready", accepts: ["screen.v2"] });
   state.ready = true;
 
   /** Send bounded UI state (which meeting is open). Over the cap: dropped. */
   function sendState(data) {
     const body = JSON.stringify(data);
     if (byteLen(body) > MAX_STATE_BYTES) return false;
-    window.parent.postMessage({ v: 1, op: "state", data }, boot.parent_origin);
+    channel.port1.postMessage({ v: 1, op: "state", data });
     state.sent = data;
     return true;
   }
