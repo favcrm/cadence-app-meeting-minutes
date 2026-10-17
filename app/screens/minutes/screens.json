@@ -1,0 +1,24 @@
+{
+  "contract": "app-screens/v2",
+  "app": "meeting-minutes",
+  "entry": "client.js",
+  "assets": [
+    {
+      "name": "client.js",
+      "media_type": "text/javascript",
+      "sha256": "sha256:ea2f2f1c0dc204d3ebd2a36a55a4f8b8cdc6a5a6e6d723427a94514f974b3f0d",
+      "size": 197768
+    },
+    {
+      "name": "app.css",
+      "media_type": "text/css",
+      "sha256": "sha256:90a7d9d5db2009744e674fc98f278d8efa15c4f3d1ebd7d2b8c299441487e2f3",
+      "size": 2679
+    }
+  ],
+  "provenance": {
+    "source_digest": "sha256:a67992c8051fc7f8ce7fbaec8f3f52aabb91647f3ab2c52f59e147520584d434",
+    "sdk_digest": "sha256:def6772b94b3b9b14bbffbf83ac66f17e54c3427fcc42a8b6b1fdc01f1b61499",
+    "toolchain_digest": "sha256:2381344fc0c0f4ef105c69d28164cd2931ebc56154a76b1c4ab3a18c16872801"
+  }
+}

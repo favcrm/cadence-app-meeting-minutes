@@ -1,0 +1,57 @@
+{
+  "contract": "app-views/v1",
+  "app": "meeting-minutes",
+  "title": "Meeting minutes",
+  "summary": "Data-only views for one meeting list, one minutes page, and a disabled preview of the new-meeting form. Recording stays a host action.",
+  "views": [
+    {
+      "id": "meetings",
+      "title": "Meeting minutes",
+      "kind": "table",
+      "fields": [
+        { "id": "title", "label": "Meeting", "format": "text", "createView": "new-meeting" },
+        { "id": "when", "label": "When", "format": "text" },
+        {
+          "id": "origin",
+          "label": "Title source",
+          "format": "enum",
+          "values": ["Your title", "From the discussion"]
+        }
+      ],
+      "columns": [
+        { "field": "title" },
+        { "field": "when" },
+        { "field": "origin" }
+      ]
+    },
+    {
+      "id": "minutes",
+      "title": "Minutes",
+      "kind": "detail",
+      "fields": [
+        { "id": "title", "label": "Meeting", "format": "text" },
+        { "id": "when", "label": "When", "format": "text" },
+        {
+          "id": "origin",
+          "label": "Title source",
+          "format": "enum",
+          "values": ["Your title", "From the discussion"]
+        },
+        { "id": "summary", "label": "Summary", "format": "text" },
+        { "id": "decisions", "label": "Decisions", "format": "text", "kind": "list" },
+        { "id": "followups", "label": "Follow-ups", "format": "text", "kind": "list" },
+        { "id": "transcript", "label": "Transcript", "format": "text", "kind": "list" }
+      ]
+    },
+    {
+      "id": "new-meeting",
+      "title": "New meeting (preview)",
+      "kind": "form",
+      "previewOf": [
+        { "id": "title", "label": "Title", "format": "text" },
+        { "id": "people", "label": "Who was there", "format": "text" },
+        { "id": "transcript", "label": "Transcript", "format": "text" }
+      ]
+    }
+  ]
+}

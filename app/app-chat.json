@@ -1,0 +1,16 @@
+{
+  "contract": "app-chat/v1",
+  "app": "meeting-minutes",
+  "contexts": [
+    {
+      "id": "meetings",
+      "label": "Meetings",
+      "prompts": ["Open the latest minutes", "What did we decide?"],
+      "record": {
+        "label": "Meeting",
+        "prompts": ["Summarise this meeting", "List the follow-ups"]
+      }
+    }
+  ],
+  "presentation": { "showContext": true }
+}
