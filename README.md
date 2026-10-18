@@ -21,6 +21,9 @@ read-only projection: run state, the reviewer's decision, and the approved
 minutes text the host publishes. Nothing here starts a run, records audio or
 writes anything — those are host actions.
 
+Version 0.2.1 wraps long run identifiers in narrow detail columns without
+truncating their values; verified with a real run at a 390px viewport.
+
 ## Layout
 
 ```text

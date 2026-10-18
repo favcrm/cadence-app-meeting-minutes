@@ -56,7 +56,7 @@ body {
 
 .facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; }
 .facts dt { color: var(--mm-ink-500); font-size: var(--mm-micro); }
-.facts dd { margin: 2px 0 0; color: var(--mm-ink-200); }
+.facts dd { margin: 2px 0 0; color: var(--mm-ink-200); overflow-wrap: anywhere; }
 
 .line { margin: 0; font-size: var(--mm-label); color: var(--mm-ink-200); }
 .line .key { color: var(--mm-ink-500); }
