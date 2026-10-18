@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.2.0'
+version: '0.2.1'
 summary: Read the reviewed minutes of this scope's consolidation runs — state, the reviewer's decision, and the approved page the host publishes.
 needs:
   connections: []
