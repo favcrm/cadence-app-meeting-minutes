@@ -27,7 +27,7 @@ writes anything — those are host actions.
 app/                     the installable bundle root
   screens/<tag>/         the app's own screen + its declaration
 src/screens/             authored screen source (entry, receiver, views)
-scripts/                 packaging (host toolchain, read-only)
+scripts/                 packaging and the pre-push gate
 docs/                    descriptor companion and notes
 ```
 
@@ -51,3 +51,43 @@ cadence app catalog approve INSTALL_ID --digest BUNDLE_DIGEST
 
 The app is then reachable at `/apps/meeting-minutes` (CAD-1438 retired the
 `/app-installations/<id>` shape to a compatibility redirect).
+
+## Check before push
+
+`scripts/pre-push` is the local gate and the CI gate. It links `node_modules`
+to `$HOST_SOURCE/ui/node_modules` (default `/home/ubuntu/Project/cadence`),
+runs `node scripts/build-ui-package.mjs`, and requires
+`dist/screens/minutes/{client.js,app.css,screens.json}` to match
+`app/screens/minutes/`. It then runs `cadence app check app`. Set `CADENCE_BIN`
+to the checker executable; otherwise it uses `cadence` on `PATH`. It does not
+install dependencies or change source or `app/`.
+
+The Cadence worktree hook passes `--receipt` to record the checked head and
+exit status. Its optional `--tests` flag runs the same complete app gate;
+this repository has no separate test suite.
+
+```sh
+scripts/pre-push
+```
+
+## CI
+
+`.github/workflows/ci.yml` has one job, `build`. It runs on pull requests,
+pushes to `main`, and merge-queue check requests. The job checks out public
+host `favcrm/cadence` at `1cc99c485d01f5fa27f04a411c375b9afcc31347`, installs
+that checkout's frozen `ui/pnpm-lock.yaml` with Node 22 and pnpm 12.2.1, and
+verifies the checksum-pinned native validator for that same host commit
+(archive member `./cadence`). It then sets `HOST_SOURCE` and `CADENCE_BIN` and
+runs `scripts/pre-push`. Pins:
+
+- archive sha256 `aa32b1259a989b0d4c38a6096ae17cbf8825be2cdd2973d83e633c1f42d96eb5` (21446982 bytes)
+- binary sha256 `3750bfa017bb3ae9ed84396080cdc409f65aeb0ea71d119c7b5eeec3d097a6bd`
+
+A missing archive, digest mismatch, stale screen asset, or rejected package
+fails the job. The token is contents read-only. The job does not install the
+app or change repository settings.
+
+Guarded delivery stays operator-owned. An operator enables the required `build`
+check, protected pull-request and merge-queue delivery, and auto-merge. Native
+reviews and operator approval stay mandatory. Agents do not apply those
+settings.

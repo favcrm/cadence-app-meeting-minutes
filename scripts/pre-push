@@ -1,0 +1,67 @@
+#!/bin/sh
+# Shared local and CI gate for this app. Rebuilds the screen, compares the
+# three committed screen files, then runs `cadence app check app`.
+# Dist output is expected. This does not install dependencies or modify
+# source or app/.
+set -eu
+
+receipt=0
+for argument in "$@"; do
+  case "$argument" in
+    --receipt) receipt=1 ;;
+    # This app always runs its complete check; there is no separate test suite.
+    --tests) ;;
+    *) echo "usage: scripts/pre-push [--receipt] [--tests]" >&2; exit 2 ;;
+  esac
+done
+
+root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+cd "$root"
+
+write_receipt() {
+  status=$?
+  if [ "$receipt" -eq 1 ]; then
+    printf 'head=%s lane=%s kind=%s steps=package:%s rc=%s at=%s\n' \
+      "$(git rev-parse HEAD 2>/dev/null || printf '?')" \
+      "${CADENCE_ALIAS:-${USER:-unknown}}" "${CADENCE_SLOT_KIND:-none}" \
+      "$status" "$status" "$(date +%s)"
+  fi
+}
+trap write_receipt 0
+
+host=${HOST_SOURCE:-/home/ubuntu/Project/cadence}
+export HOST_SOURCE="$host"
+if [ ! -d "$HOST_SOURCE/ui/node_modules/vite" ]; then
+  echo "pre-push: host UI dependencies are not installed at $HOST_SOURCE/ui/node_modules" >&2
+  exit 1
+fi
+ln -sfn "$HOST_SOURCE/ui/node_modules" node_modules
+
+node scripts/build-ui-package.mjs
+
+fail=0
+for name in client.js app.css screens.json; do
+  generated="dist/screens/minutes/$name"
+  tracked="app/screens/minutes/$name"
+  if [ ! -f "$generated" ] || [ ! -f "$tracked" ] || ! cmp -s "$generated" "$tracked"; then
+    echo "pre-push: screen asset drift: $name" >&2
+    fail=1
+  fi
+done
+if [ "$fail" -ne 0 ]; then
+  exit 1
+fi
+
+if [ -n "${CADENCE_BIN:-}" ]; then
+  checker=$CADENCE_BIN
+else
+  checker=$(command -v cadence) || {
+    echo "pre-push: cadence is not on PATH; set CADENCE_BIN" >&2
+    exit 1
+  }
+fi
+if [ ! -x "$checker" ]; then
+  echo "pre-push: checker is not executable: $checker" >&2
+  exit 1
+fi
+"$checker" app check app
