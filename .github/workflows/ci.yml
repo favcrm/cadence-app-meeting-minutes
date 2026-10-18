@@ -1,0 +1,88 @@
+name: ci
+
+# One required check, `build`. It prepares the pinned host toolchain and
+# validator, then runs scripts/pre-push.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      # Public host favcrm/cadence at the promoted operator-host commit.
+      # ui/package.json there is packageManager pnpm@12.2.1, vite 8.2.2,
+      # @vitejs/plugin-react 6.1.1. Not a floating main checkout.
+      - name: Checkout pinned host toolchain
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: favcrm/cadence
+          ref: 1cc99c485d01f5fa27f04a411c375b9afcc31347
+          path: .ci-host
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12.2.1
+          package_json_file: .ci-host/ui/package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: .ci-host/ui/pnpm-lock.yaml
+
+      - name: Install frozen host UI dependencies
+        working-directory: .ci-host/ui
+        run: pnpm install --frozen-lockfile
+
+      # Check the immutable archive before extracting its native ./cadence member.
+      - name: Fetch and verify the pinned validator
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/cadence-release.tar.gz"
+          extract="$RUNNER_TEMP/cadence-release"
+          url="https://api-v2.agenticos.hk/v1/cadence/artifacts/cadence/operator-host/1cc99c485d01f5fa27f04a411c375b9afcc31347/cadence-release.tar.gz"
+          expected_sha="aa32b1259a989b0d4c38a6096ae17cbf8825be2cdd2973d83e633c1f42d96eb5"
+          expected_bin="3750bfa017bb3ae9ed84396080cdc409f65aeb0ea71d119c7b5eeec3d097a6bd"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            --output "$archive" "$url"
+          printf '%s  %s\n' "$expected_sha" "$archive" | sha256sum -c -
+          mkdir -p "$extract"
+          tar -xzf "$archive" -C "$extract" ./cadence
+          test -f "$extract/cadence"
+          printf '%s  %s\n' "$expected_bin" "$extract/cadence" | sha256sum -c -
+          chmod 755 "$extract/cadence"
+
+      - name: Check the package
+        env:
+          HOST_SOURCE: ${{ github.workspace }}/.ci-host
+          CADENCE_BIN: ${{ runner.temp }}/cadence-release/cadence
+          HOME: ${{ runner.temp }}/cadence-app-check/home
+          TMPDIR: ${{ runner.temp }}/cadence-app-check/tmp
+          XDG_CONFIG_HOME: ${{ runner.temp }}/cadence-app-check/xdg/config
+          XDG_CACHE_HOME: ${{ runner.temp }}/cadence-app-check/xdg/cache
+          XDG_DATA_HOME: ${{ runner.temp }}/cadence-app-check/xdg/data
+          XDG_STATE_HOME: ${{ runner.temp }}/cadence-app-check/xdg/state
+          XDG_RUNTIME_DIR: ${{ runner.temp }}/cadence-app-check/xdg/runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" "$TMPDIR" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          unset CADENCE_PM_DIR CADENCE_STATE_DIR CADENCE_ORG CADENCE_HOME
+          scripts/pre-push
