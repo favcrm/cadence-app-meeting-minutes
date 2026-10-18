@@ -107,8 +107,8 @@ export default function Minutes({ hostData }) {
         <div className="card empty" role="status">
           <p className="strong">No meetings in this scope</p>
           <p className="note">
-            Starting a meeting is a host action: record or paste a transcript in the assistant,
-            and its consolidate run appears here.
+            This read-only view shows consolidation runs for the selected scope.
+            Consolidation starts in the host's local text workflow, not in this screen.
           </p>
         </div>
       ) : (

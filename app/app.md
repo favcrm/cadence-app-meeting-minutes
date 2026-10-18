@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.2.1'
+version: '0.2.2'
 summary: Read the reviewed minutes of this scope's consolidation runs — state, the reviewer's decision, and the approved page the host publishes.
 needs:
   connections: []
@@ -20,7 +20,7 @@ listing:
     - minutes
   publisher:
     name: Cadence
-  about: Meeting minutes shows the runs that turn one pasted transcript into a single reviewed page, with the summary, decisions, follow-ups and the reviewer's decision. The screen reads the host's read-only projection. Recording, speech-to-text, starting a run, and naming a blank title from the room stay outside this bundle.
+  about: Meeting minutes shows the runs that turn one pasted transcript into a single reviewed page, with the summary, decisions, follow-ups and the reviewer's decision. The screen reads the host's read-only projection. Starting the text workflow is host-owned; this bundle provides no recording or speech-to-text.
   can:
     - Show the consolidation runs of this scope with their real state
     - Show the reviewer's decision and why
@@ -46,9 +46,8 @@ the host states them. A field the host omits is shown as absent, never filled
 in with a guess.
 
 Nothing in this bundle records audio, calls a speech model, starts a run,
-creates a task, or sends a message. Recording and speech-to-text stay
-operator-run host actions; starting a consolidation run is the host's job too,
-which is why the screen offers no button that could not work.
+creates a task, or sends a message. Starting the local text consolidation
+workflow is the host's job; the screen only displays its runs.
 
 The only workflow is `consolidate`, which turns one pasted transcript into a
 single minutes page: a summary, the decisions, and the follow-ups. The result
@@ -66,10 +65,11 @@ cadence app catalog approve INSTALL_ID --digest BUNDLE_DIGEST
 
 ## Run
 
-Ask for a new minutes page and paste the transcript. Register two different
-agents in the owner PM group: one writer and one reviewer. The writer produces
-one markdown artifact. The reviewer fetches that artifact, checks it against
-the quoted transcript, and approves or sends it back.
+Start the host's `consolidate` workflow with a pasted transcript. It requires
+two different registered agents in the owner PM group: one writer and one
+reviewer. The writer produces one markdown artifact. The reviewer fetches
+that artifact, checks it against the quoted transcript, and approves or
+sends it back. Sending an ordinary chat message alone does not start a run.
 
 An approved page is text for a person to read. It is not a task list the host
 will execute.
