@@ -3,7 +3,7 @@
   "app": "meeting-minutes",
   "contexts": [
     {
-      "id": "meetings",
+      "id": "minutes",
       "label": "Meetings",
       "prompts": ["Open the latest minutes", "What did we decide?"],
       "record": {

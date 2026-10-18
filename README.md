@@ -24,6 +24,10 @@ writes anything — those are host actions.
 Version 0.2.1 wraps long run identifiers in narrow detail columns without
 truncating their values; verified with a real run at a 390px viewport.
 
+Version 0.2.2 matches the chat prompt group to the `minutes` screen and
+clarifies that the screen displays scoped runs, not an audio recorder or
+an automatic chat-to-run launcher. Starting consolidation is host-owned.
+
 ## Layout
 
 ```text
