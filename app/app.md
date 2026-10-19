@@ -1,82 +1,75 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.2.4'
-summary: Read reviewed meeting minutes — state, the reviewer's decision, and the approved page the host publishes.
+version: '0.2.5'
+summary: Record a meeting, follow its transcript, and reread saved minutes.
 needs:
   connections: []
-  capabilities: {}
-  views:
-    contract: app-views/v1
-  requires:
-    contracts:
-      app-screens: [1]
+  capabilities:
+    transcription:
+      schema: 1
+      capability: audio.transcribe
+      version: 1
+      action: transcribe_audio
+      resource_kind: connection_account
+      effect: draft
+    consolidation:
+      schema: 1
+      capability: text.generate
+      version: 1
+      action: generate_text
+      resource_kind: connection_account
+      effect: draft
+  recording:
+    transcription: transcription
+    consolidation: consolidation
+    label: New minutes
+    title: New meeting
 listing:
-  tagline: Read minutes from a transcript
+  tagline: Record a meeting. Keep what was decided.
   icon: assets/meeting-minutes.svg
   category: operations
-  tags:
-    - meetings
-    - minutes
+  tags: [meetings, minutes]
   publisher:
     name: Cadence
-  about: Meeting minutes shows the runs that turn one pasted transcript into a single reviewed page, with the summary, decisions, follow-ups and the reviewer's decision. The screen reads the host's read-only projection. Starting the text workflow is host-owned; this bundle provides no recording or speech-to-text.
+  about: Record in the trusted host, follow confirmed transcript batches, then read a saved summary, decisions and follow-ups beside their source. The assistant stays available. No writer, reviewer, profile or model setup is required.
   can:
-    - Show meeting consolidation runs with their real state
-    - Show the reviewer's decision and why
-    - Show the approved minutes text the host publishes for a run
+    - Record, pause, resume and stop a meeting after seeing the price
+    - Follow confirmed transcript batches while recording
+    - Reread full minutes and their timestamped source transcript
+    - Rename a meeting without a later generated title overwriting it
   screenshots: []
   setup: []
   data:
     stores:
-      - The reviewed minutes text, as the host publishes it
+      - Title, optional participants, consent, transcript timestamps and minutes in this installation's default context
+      - Pending audio and private paid receipts in the host; confirmed audio is removed from active input
     personal: true
 ---
 
-# Meeting minutes — the reviewed-minutes screen
+# Meeting minutes
 
-This bundle installs the `meeting-minutes` app: one manifest, one local-only
-consolidation workflow, one review rubric, and one app-owned screen
-(`screens/minutes/`, `app-screens/v2`).
+The trusted host renders the recent meetings list, inline New meeting recorder
+and full minutes detail beside the persistent assistant. The default context
+is internal; there is no context picker or raw context identifier in this view.
+There is no app-owned iframe, pasted-transcript launcher or agent-team workflow.
 
-The screen renders the host's read-only projection of this scope: the runs
-that belong to it, each run's real state, the reviewer's decision, and — for a
-reviewer-approved run — the first characters of the approved minutes text as
-the host states them. A field the host omits is shown as absent, never filled
-in with a guess.
+Press Record only after everyone knows the meeting is being recorded and you
+accept the displayed cumulative transcription and minutes ceilings. Title and
+participants are optional single-line fields. Pause releases the microphone;
+Resume continues the same source timeline. Stop saves the final short audio
+batch before generating minutes. Speech arrives in ordered roughly 8-second
+16 kHz mono PCM16 WAV batches, not simulated transcript lines.
 
-Nothing in this bundle records audio, calls a speech model, starts a run,
-creates a task, or sends a message. Starting the local text consolidation
-workflow is the host's job; the screen only displays its runs.
+The bundle requests generic `audio.transcribe@1` and `text.generate@1` services.
+The host selects reviewed connections and platform defaults; the app contains
+no provider URL, credential or model pin. An unavailable, disabled or unpriced
+service prevents Record rather than falling back or claiming success.
 
-The only workflow is `consolidate`, which turns one pasted transcript into a
-single minutes page: a summary, the decisions, and the follow-ups. The result
-is draft text until the independent review approves it.
+Saved minutes contain summary, source-backed decisions and follow-ups. Unknown
+owners and dates remain unassigned. A supplied or manually renamed title belongs
+to you; generation cannot replace it. No tasks, messages or outward actions are
+created. Interrupted paid operations retain their exact retry identity.
 
-## Set up once
-
-From a trusted Cadence source checkout, install this directory and read the
-returned installation ID and bundle digest. Approve that exact digest:
-
-```sh
-cadence app catalog install .
-cadence app catalog approve INSTALL_ID --digest BUNDLE_DIGEST
-```
-
-## Run
-
-Start the host's `consolidate` workflow with a pasted transcript — the one
-required content input, accepted as a single paragraph. The
-title is optional: left blank, the declared app default `Untitled meeting`
-fills it, and the writer may title the page from the transcript's own
-words. The schema also permits a saved context default, so a non-empty
-title saved for this context legitimately fills it instead — both are
-native resolutions, never a host-invented value. It requires two
-different registered agents in the owner PM group: one
-writer and one reviewer. The writer produces one markdown artifact. The
-reviewer fetches that artifact, checks it against the quoted transcript,
-and approves or sends it back. Sending an ordinary chat message alone does
-not start a run.
-
-An approved page is text for a person to read. It is not a task list the host
-will execute.
+Install and approve the exact bundle digest using the normal host catalog flow.
+The host must support `needs.recording`; older hosts reject this bundle.
