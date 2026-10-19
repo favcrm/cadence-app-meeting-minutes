@@ -34,6 +34,13 @@ Title resolves to it natively, never to a host-invented value, and a
 non-empty title saved as a context default legitimately takes precedence —
 and replaces the empty-state copy with plain transcript-first wording.
 
+Version 0.2.4 treats the existing host default context (currently labelled
+General) as an internal detail: no context picker, raw context ID or version
+subtitle in the minutes screen. Loading and empty states use plain minutes
+language and point to the existing New minutes action. The receiver's scope
+checks and the host's filtering remain unchanged; this does not combine
+contexts, migrate data or remove backend isolation.
+
 ## Layout
 
 ```text

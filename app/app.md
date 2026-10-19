@@ -1,8 +1,8 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.2.3'
-summary: Read the reviewed minutes of this scope's consolidation runs — state, the reviewer's decision, and the approved page the host publishes.
+version: '0.2.4'
+summary: Read reviewed meeting minutes — state, the reviewer's decision, and the approved page the host publishes.
 needs:
   connections: []
   capabilities: {}
@@ -22,7 +22,7 @@ listing:
     name: Cadence
   about: Meeting minutes shows the runs that turn one pasted transcript into a single reviewed page, with the summary, decisions, follow-ups and the reviewer's decision. The screen reads the host's read-only projection. Starting the text workflow is host-owned; this bundle provides no recording or speech-to-text.
   can:
-    - Show the consolidation runs of this scope with their real state
+    - Show meeting consolidation runs with their real state
     - Show the reviewer's decision and why
     - Show the approved minutes text the host publishes for a run
   screenshots: []

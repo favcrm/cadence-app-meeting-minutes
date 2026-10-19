@@ -33,7 +33,6 @@ body {
 
 .screen { padding: 20px 22px 28px; display: grid; gap: 16px; }
 .head h1 { margin: 0; font-size: 18px; font-weight: 600; color: var(--mm-ink-100); }
-.head .sub { margin: 4px 0 0; color: var(--mm-ink-500); font-size: var(--mm-micro); }
 .num { font-variant-numeric: tabular-nums; }
 
 .split { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 20px; align-items: start; }

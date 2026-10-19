@@ -88,7 +88,7 @@ export default function Minutes({ hostData }) {
   if (hostData.isEmpty() && snapshot.v === 0) {
     return (
       <div className="screen">
-        <p className="note" role="status">Waiting for the host to attach this scope…</p>
+        <p className="note" role="status">Loading minutes…</p>
       </div>
     );
   }
@@ -97,18 +97,13 @@ export default function Minutes({ hostData }) {
     <div className="screen">
       <header className="head">
         <h1>{snapshot.installation.title || "Meeting minutes"}</h1>
-        <p className="sub num">
-          {snapshot.contextId ? `Context ${snapshot.contextId}` : "No context"}
-          {snapshot.installation.version ? ` · ${snapshot.installation.version}` : ""}
-        </p>
       </header>
 
       {meetings.length === 0 ? (
         <div className="card empty" role="status">
-          <p className="strong">No minutes yet for this scope</p>
+          <p className="strong">No minutes yet</p>
           <p className="note">
-            Minutes created and reviewed for this scope appear here.
-            New minutes start from a pasted transcript in the host, not in this screen.
+            Choose New minutes to paste a transcript. Your minutes and their review status appear here.
           </p>
         </div>
       ) : (
