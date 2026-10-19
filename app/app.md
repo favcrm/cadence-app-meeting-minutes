@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.2.2'
+version: '0.2.3'
 summary: Read the reviewed minutes of this scope's consolidation runs — state, the reviewer's decision, and the approved page the host publishes.
 needs:
   connections: []
@@ -65,11 +65,18 @@ cadence app catalog approve INSTALL_ID --digest BUNDLE_DIGEST
 
 ## Run
 
-Start the host's `consolidate` workflow with a pasted transcript. It requires
-two different registered agents in the owner PM group: one writer and one
-reviewer. The writer produces one markdown artifact. The reviewer fetches
-that artifact, checks it against the quoted transcript, and approves or
-sends it back. Sending an ordinary chat message alone does not start a run.
+Start the host's `consolidate` workflow with a pasted transcript — the one
+required content input, accepted as a single paragraph. The
+title is optional: left blank, the declared app default `Untitled meeting`
+fills it, and the writer may title the page from the transcript's own
+words. The schema also permits a saved context default, so a non-empty
+title saved for this context legitimately fills it instead — both are
+native resolutions, never a host-invented value. It requires two
+different registered agents in the owner PM group: one
+writer and one reviewer. The writer produces one markdown artifact. The
+reviewer fetches that artifact, checks it against the quoted transcript,
+and approves or sends it back. Sending an ordinary chat message alone does
+not start a run.
 
 An approved page is text for a person to read. It is not a task list the host
 will execute.
