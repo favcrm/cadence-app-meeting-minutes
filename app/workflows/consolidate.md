@@ -3,9 +3,19 @@ title: "Minutes: {{subject}}"
 goal: "One independently reviewed minutes page from a pasted transcript"
 label: New minutes
 inputs:
-  subject: { ask: "Short meeting name, or leave the example and say the title is blank", example: "Untitled meeting" }
-  transcript: { ask: "Paste the transcript. One line per batch is enough.", example: "00:00 Launch moves to Thursday. 00:08 Design owns the checklist." }
-  people: { ask: "Optional names of who was there, separated by semicolons", optional: true, example: "Design; Ops" }
+  transcript:
+    ask: "Transcript — paste as one paragraph"
+    example: "00:00 Launch moves to Thursday. 00:08 Design owns the checklist."
+  subject:
+    ask: "Title"
+    optional: true
+    context_default: true
+    default: 'Untitled meeting'
+    example: "Untitled meeting"
+  people:
+    ask: "People — names separated by semicolons"
+    optional: true
+    example: "Design; Ops"
   writer: { ask: "Registered writer in the owner PM group" }
   reviewer: { ask: "Different registered reviewer in the same owner PM group" }
 distinct: [writer, reviewer]

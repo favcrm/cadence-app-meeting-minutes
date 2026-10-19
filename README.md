@@ -28,6 +28,12 @@ Version 0.2.2 matches the chat prompt group to the `minutes` screen and
 clarifies that the screen displays scoped runs, not an audio recorder or
 an automatic chat-to-run launcher. Starting consolidation is host-owned.
 
+Version 0.2.3 leads the run form with the transcript, makes the title
+optional with the declared app default `Untitled meeting` — an empty
+Title resolves to it natively, never to a host-invented value, and a
+non-empty title saved as a context default legitimately takes precedence —
+and replaces the empty-state copy with plain transcript-first wording.
+
 ## Layout
 
 ```text

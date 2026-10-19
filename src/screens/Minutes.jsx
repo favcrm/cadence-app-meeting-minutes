@@ -105,10 +105,10 @@ export default function Minutes({ hostData }) {
 
       {meetings.length === 0 ? (
         <div className="card empty" role="status">
-          <p className="strong">No meetings in this scope</p>
+          <p className="strong">No minutes yet for this scope</p>
           <p className="note">
-            This read-only view shows consolidation runs for the selected scope.
-            Consolidation starts in the host's local text workflow, not in this screen.
+            Minutes created and reviewed for this scope appear here.
+            New minutes start from a pasted transcript in the host, not in this screen.
           </p>
         </div>
       ) : (
