@@ -1,113 +1,62 @@
 # Cadence Meeting minutes App
 
-App identity stays `meeting-minutes`; the repository name does not change
-installation or data identities. Local checkout:
-`/home/ubuntu/Project/cadence-app-meeting-minutes`.
+The application identity remains `meeting-minutes`; installation and saved-data
+identities do not change with the repository name.
 
-## Status
+## Version 0.2.5
 
-Extracted from the Cadence tree under CAD-1505, after CAD-1422 made detached
-app repositories the source of truth. `app/` is the installable bundle:
+The approved New minutes action opens the trusted host's inline New meeting
+recorder, not a pasted-transcript dialog. Recent meetings, recording and full
+minutes detail use the host's verified `needs.recording` contract beside the
+persistent assistant. Title and participants are optional. Record, Pause,
+Resume and Stop operate the microphone; transcript lines come from confirmed
+roughly 8-second audio batches. Stop includes the final short batch.
 
-- `app.md` — the manifest, including the `app-screens: [1]` requirement
-- `app-chat.json`, `workflows/consolidate.md`, `rubrics/minutes.md`
-- `views/app-views-v1.json` — the data-only descriptor
-- `screens/minutes/` — the app-owned screen (`app-screens/v2`): `screens.json`
-  plus the exact `client.js`/`app.css` bytes it declares
+The host persists summary, cited decisions, follow-ups and timestamped source.
+Unknown owners/dates remain unassigned. Manual titles cannot be overwritten by
+generation. No tasks, messages or outward actions are created. The default
+context is internal; its raw identifier and version are not workspace chrome.
 
-The screen is built from `src/screens/` by `scripts/build-ui-package.mjs` and
-then copied into `app/screens/`. What it can show is bounded by the host's
-read-only projection: run state, the reviewer's decision, and the approved
-minutes text the host publishes. Nothing here starts a run, records audio or
-writes anything — those are host actions.
+The old iframe, truncated run-artifact projection, pasted-transcript workflow,
+writer/reviewer rubric and screen generator are removed. There is no app-owned
+microphone code, provider credential, provider URL or model pin.
 
-Version 0.2.1 wraps long run identifiers in narrow detail columns without
-truncating their values; verified with a real run at a 390px viewport.
+## Bundle
 
-Version 0.2.2 matches the chat prompt group to the `minutes` screen and
-clarifies that the screen displays scoped runs, not an audio recorder or
-an automatic chat-to-run launcher. Starting consolidation is host-owned.
+- `app/app.md`: catalog metadata, generic `audio.transcribe@1` and
+  `text.generate@1` slots, and the native recording declaration.
+- `app/app-chat.json`: shared assistant prompt group, without context chrome.
+- `app/assets/meeting-minutes.svg`: catalog icon.
 
-Version 0.2.3 leads the run form with the transcript, makes the title
-optional with the declared app default `Untitled meeting` — an empty
-Title resolves to it natively, never to a host-invented value, and a
-non-empty title saved as a context default legitimately takes precedence —
-and replaces the empty-state copy with plain transcript-first wording.
+## Host and service requirements
 
-Version 0.2.4 treats the existing host default context (currently labelled
-General) as an internal detail: no context picker, raw context ID or version
-subtitle in the minutes screen. Loading and empty states use plain minutes
-language and point to the existing New minutes action. The receiver's scope
-checks and the host's filtering remain unchanged; this does not combine
-contexts, migrate data or remove backend isolation.
+The host must validate, approve and render recording-only applications. Older
+validators reject `needs.recording`; do not bypass that refusal. The platform
+must expose the reviewed speech-capable provider manifest, a published default
+speech route and reviewed positive per-second customer/provider prices. An
+operator owns publication, enablement and funding. Missing services disable
+Record with an explanation; there is no simulated success or fallback.
 
-## Layout
+Before capture, the host shows cumulative transcription and consolidation
+ceilings. Pending audio remains in the host until confirmation; active audio
+input is then cleared while transcript and paid-operation receipts remain.
+This is not a secure-erasure claim. Unknown paid outcomes retain their exact
+operation identity instead of starting replacement charged calls.
 
-```text
-app/                     the installable bundle root
-  screens/<tag>/         the app's own screen + its declaration
-src/screens/             authored screen source (entry, receiver, views)
-scripts/                 packaging and the pre-push gate
-docs/                    descriptor companion and notes
-```
+## Verification and delivery
 
-## Build the screen package
+`scripts/pre-push` runs `cadence app check app` using `CADENCE_BIN`, or `cadence`
+on PATH. It installs no dependencies and writes no bundle files. `--receipt`
+records the checked head and exit status; `--tests` uses the same complete gate.
+The host repository owns recorder UI, capture and service checks.
 
-The toolchain resolves from a Cadence checkout's `ui/node_modules`; nothing is
-installed into this repository.
+CI retains the required `build` check and verifies an immutable native validator
+archive and binary before running the same gate. Its validator pin must be a
+promoted host build that supports recording-only applications before this app
+can pass CI or ship. Keep the host, platform and application rollout ordered;
+local validation does not constitute deployment or provider activation.
 
-```sh
-ln -sfn /home/ubuntu/Project/cadence/ui/node_modules node_modules   # once
-node scripts/build-ui-package.mjs
-cp dist/screens/minutes/{client.js,app.css,screens.json} app/screens/minutes/
-```
-
-## Install
-
-```sh
-cadence app catalog install .
-cadence app catalog approve INSTALL_ID --digest BUNDLE_DIGEST
-```
-
-The app is then reachable at `/apps/meeting-minutes` (CAD-1438 retired the
-`/app-installations/<id>` shape to a compatibility redirect).
-
-## Check before push
-
-`scripts/pre-push` is the local gate and the CI gate. It links `node_modules`
-to `$HOST_SOURCE/ui/node_modules` (default `/home/ubuntu/Project/cadence`),
-runs `node scripts/build-ui-package.mjs`, and requires
-`dist/screens/minutes/{client.js,app.css,screens.json}` to match
-`app/screens/minutes/`. It then runs `cadence app check app`. Set `CADENCE_BIN`
-to the checker executable; otherwise it uses `cadence` on `PATH`. It does not
-install dependencies or change source or `app/`.
-
-The Cadence worktree hook passes `--receipt` to record the checked head and
-exit status. Its optional `--tests` flag runs the same complete app gate;
-this repository has no separate test suite.
-
-```sh
-scripts/pre-push
-```
-
-## CI
-
-`.github/workflows/ci.yml` has one job, `build`. It runs on pull requests,
-pushes to `main`, and merge-queue check requests. The job checks out public
-host `favcrm/cadence` at `1cc99c485d01f5fa27f04a411c375b9afcc31347`, installs
-that checkout's frozen `ui/pnpm-lock.yaml` with Node 22 and pnpm 12.2.1, and
-verifies the checksum-pinned native validator for that same host commit
-(archive member `./cadence`). It then sets `HOST_SOURCE` and `CADENCE_BIN` and
-runs `scripts/pre-push`. Pins:
-
-- archive sha256 `aa32b1259a989b0d4c38a6096ae17cbf8825be2cdd2973d83e633c1f42d96eb5` (21446982 bytes)
-- binary sha256 `3750bfa017bb3ae9ed84396080cdc409f65aeb0ea71d119c7b5eeec3d097a6bd`
-
-A missing archive, digest mismatch, stale screen asset, or rejected package
-fails the job. The token is contents read-only. The job does not install the
-app or change repository settings.
-
-Guarded delivery stays operator-owned. An operator enables the required `build`
-check, protected pull-request and merge-queue delivery, and auto-merge. Native
-reviews and operator approval stay mandatory. Agents do not apply those
-settings.
+Install the bundle through the normal catalog flow and approve its exact digest.
+It remains reachable at `/apps/meeting-minutes`. Production updates, service
+publication, required independent reviews and operator approvals remain owned
+by their normal delivery controls.

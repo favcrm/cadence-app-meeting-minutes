@@ -3,14 +3,10 @@
   "app": "meeting-minutes",
   "contexts": [
     {
-      "id": "minutes",
+      "id": "list",
       "label": "Meetings",
-      "prompts": ["Open the latest minutes", "What did we decide?"],
-      "record": {
-        "label": "Meeting",
-        "prompts": ["Summarise this meeting", "List the follow-ups"]
-      }
+      "prompts": ["How does recording work?", "What is saved?"]
     }
   ],
-  "presentation": { "showContext": true }
+  "presentation": { "showContext": false }
 }
