@@ -12,9 +12,13 @@
  *                        boot.parent_origin, [channel.port2])
  *
  *   host -> child PUSH:
- *     { v:2, op:"screen", install_id, digest, tag, context_id,
+ *     { v:2, op:"screen", install_id, digest, tag, context_id?,
  *       installation:{install_id,name,title,version,digest,summary},
- *       contexts:[{id,label}], runs:[…], outbox:[…], now, resume? }
+ *       contexts?:[{id,label}], runs:[…], outbox:[…], now, resume? }
+ *
+ * The workspace is one scope (install + digest). `context_id` and `contexts`
+ * are optional legacy fields: absent, `""` with `[]`, or a real id are all
+ * accepted and ignored; a malformed non-empty id is refused.
  *
  *   child -> host (port1), only:
  *     { v:1, op:"ready" }  |  { v:1, op:"state", data: <=32 KiB }
@@ -33,6 +37,7 @@ const S_TITLE = 512;
 const S_PHASE = 64;
 const S_EXCERPT = 4096;
 const S_RATIONALE = 8192;
+const CONTEXT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const NONCE = /^[0-9a-f]{64}$/;
 const BOOT_KEYS = ["tag", "bridge_nonce", "generation", "parent_origin"];
@@ -119,22 +124,22 @@ export function readPush(message) {
   const installation = row(message.installation) ? message.installation : {};
   const runs = Array.isArray(message.runs) ? message.runs : [];
   if (runs.length > MAX_ROWS) throw new Error("projection carries more runs than the bound");
-  const contexts = Array.isArray(message.contexts) ? message.contexts : [];
+  // Context is no longer a scope dimension. Absent / "" is the one-workspace
+  // shape; a real id from an older host is tolerated; anything else is refused.
+  if (message.context_id !== undefined && message.context_id !== "" && !(typeof message.context_id === "string" && CONTEXT_ID.test(message.context_id))) {
+    throw new Error("push carries a malformed context_id");
+  }
   return {
     v: message.v,
     installId: message.install_id,
     digest: str(message.digest, S_ID) ? message.digest : null,
     tag: str(message.tag, 64) ? message.tag : null,
-    contextId: str(message.context_id, S_ID) ? message.context_id : "",
     installation: {
       title: str(installation.title, S_TITLE) ? installation.title : "",
       name: str(installation.name, S_ID) ? installation.name : "",
       version: str(installation.version, S_PHASE) ? installation.version : "",
       summary: str(installation.summary, MAX_TEXT) ? installation.summary : "",
     },
-    contexts: contexts
-      .filter((entry) => row(entry) && str(entry.id, S_ID) && str(entry.label, S_TITLE))
-      .map((entry) => ({ id: entry.id, label: entry.label })),
     meetings: runs.map(meeting).filter((entry) => entry !== null),
   };
 }

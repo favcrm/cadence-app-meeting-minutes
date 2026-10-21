@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.2.4'
+version: '0.2.5'
 summary: Read reviewed meeting minutes — state, the reviewer's decision, and the approved page the host publishes.
 needs:
   connections: []
