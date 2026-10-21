@@ -10,6 +10,10 @@
  * screen says so rather than offering a button that could not work.
  */
 import { useEffect, useState } from "react";
+
+/** How long a mounted screen waits for the host's first push before it says
+ *  the host is unreachable. */
+const PUSH_WAIT_MS = 10000;
 import { meetingWhen, phaseLabel, reviewLabel } from "./host-data.mjs";
 
 function Facts({ meeting }) {
@@ -72,6 +76,13 @@ function Detail({ meeting }) {
 export default function Minutes({ hostData }) {
   const [snapshot, setSnapshot] = useState(() => hostData.read());
   const [open, setOpen] = useState(null);
+  const [waited, setWaited] = useState(false);
+
+  useEffect(() => {
+    if (snapshot.v !== 0) return undefined;
+    const timer = setTimeout(() => setWaited(true), PUSH_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [snapshot.v]);
 
   useEffect(() => {
     // The host pushes once, right after the handshake, so a push can land
@@ -86,6 +97,16 @@ export default function Minutes({ hostData }) {
   const selected = meetings.find((meeting) => meeting.id === open) ?? null;
 
   if (hostData.isEmpty() && snapshot.v === 0) {
+    if (hostData.isUnreachable() || waited) {
+      return (
+        <div className="screen">
+          <div className="card empty" role="status">
+            <p className="strong">Host unreachable</p>
+            <p className="note">Minutes could not be loaded from the workspace. Reopen this screen to try again.</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="screen">
         <p className="note" role="status">Loading minutes…</p>

@@ -1,7 +1,8 @@
 /**
  * The projection store — the only data this screen has.
  *
- * The host PUSHes a read-only snapshot of the verified scope; nothing here
+ * The host PUSHes a read-only snapshot of the verified scope (one workspace:
+ * install + digest); nothing here
  * fetches, caches to storage or invents a row. `isEmpty` is honest: it means
  * the host has not attached a projection yet, not that the app has no
  * meetings.
@@ -12,19 +13,27 @@ const EMPTY = Object.freeze({
   installId: "",
   digest: null,
   tag: null,
-  contextId: "",
   installation: { title: "", name: "", version: "", summary: "" },
-  contexts: [],
   meetings: [],
 });
 
 export function createHostData() {
   let snapshot = EMPTY;
+  let unreachable = false;
   const listeners = new Set();
 
   return {
     read: () => snapshot,
     isEmpty: () => snapshot.v === 0,
+    /** True when no host push can arrive: no bridge, or none within the wait. */
+    isUnreachable: () => unreachable,
+    markUnreachable() {
+      if (snapshot.v !== 0) return;
+      unreachable = true;
+      // A fresh object so subscribers re-render; the snapshot stays empty (v 0).
+      snapshot = { ...snapshot };
+      for (const fn of listeners) fn(snapshot);
+    },
     subscribe(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);
@@ -32,6 +41,7 @@ export function createHostData() {
     /** Called only by the receiver with an already-validated projection. */
     attach(next) {
       snapshot = next;
+      unreachable = false;
       for (const fn of listeners) fn(snapshot);
     },
   };

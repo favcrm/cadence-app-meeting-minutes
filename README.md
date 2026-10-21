@@ -41,6 +41,13 @@ language and point to the existing New minutes action. The receiver's scope
 checks and the host's filtering remain unchanged; this does not combine
 contexts, migrate data or remove backend isolation.
 
+Version 0.2.5 drops context from the screen's scope: one workspace is one
+scope (install + digest). The receiver accepts a push with `context_id` absent,
+`""` with `contexts: []`, or a real id from an older host, and still refuses a
+malformed non-empty id. A screen with no host push shows an explicit
+"Host unreachable" state instead of loading forever. No data is migrated and
+backend isolation is unchanged.
+
 ## Layout
 
 ```text

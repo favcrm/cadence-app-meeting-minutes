@@ -46,7 +46,8 @@ try {
     debug: () => ({ ...channelDebug }),
   };
 } catch (error) {
-  // No bridge (a local `index.html` verification page): the screen shows its
-  // honest waiting state instead of inventing data.
+  // No bridge (a local `index.html` verification page): the screen shows the
+  // explicit host-unreachable state instead of inventing data.
+  hostData.markUnreachable();
   if (typeof console !== "undefined") console.warn("screen bridge unavailable:", error && error.message);
 }
