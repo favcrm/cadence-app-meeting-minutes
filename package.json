@@ -1,0 +1,9 @@
+{
+  "name": "cadence-app-meeting-minutes",
+  "private": true,
+  "cadence": {
+    "app": "meeting-minutes",
+    "dev": "scripts/dev-preview.sh",
+    "check": "cadence app check app"
+  }
+}
