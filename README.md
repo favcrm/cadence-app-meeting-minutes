@@ -58,6 +58,20 @@ scripts/                 packaging and the pre-push gate
 docs/                    descriptor companion and notes
 ```
 
+## Offline preview (CAD-1725 / CMM-7)
+
+From this repository, with a `cadence` build that has `app dev --package`:
+
+```sh
+cadence app dev --package . --port 3190
+```
+
+This validates the bundle, exports the canonical offline frame with
+`cadence app frame-kit --bundle app`, and serves it at
+`http://127.0.0.1:3190/`. It uses the committed `app/screens/minutes` bytes;
+run the build/copy step below first when changing the screen. It loads no host
+data, install or source checkout.
+
 ## Build the screen package
 
 The toolchain resolves from a Cadence checkout's `ui/node_modules`; nothing is
