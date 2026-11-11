@@ -3,7 +3,7 @@
 # Actions are pinned to commit SHAs per project convention. Read-only token; no
 # publication, no deployment, no external sends.
 
-name: package
+name: ci
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  package:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
