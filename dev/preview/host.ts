@@ -88,7 +88,7 @@ function pushScreen(): void {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.3.0",
+      version: "0.3.1",
       digest: DIGEST,
       summary:
         "Turn meeting discussions and notes into structured minutes, decisions, and follow-ups.",

@@ -34,6 +34,15 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(descriptor.app).toBe("meeting-minutes");
     expect(descriptor.record_kind).toBe("meeting");
     expect(descriptor.default_table).toBe("meetings");
+    expect(descriptor.record_search_columns).toEqual([
+      "title",
+      "participants_text",
+      "summary",
+      "tags",
+      "decisions",
+      "followups",
+      "transcript",
+    ]);
     expect(descriptor.migrations).toHaveLength(1);
 
     const migrationBytes = readFileSync(resolve(ROOT, "app", descriptor.migrations[0].path));
@@ -44,14 +53,14 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(writeSchema.then.properties.after.properties.title_source.const).toBe("user");
   });
 
-  test("app/app.md declares 0.3.0, required contracts, and no forbidden pricing keys", () => {
+  test("app/app.md declares 0.3.1, required contracts, and no forbidden pricing keys", () => {
     const raw = readFileSync(resolve(ROOT, "app/app.md"), "utf8");
     const lines = raw.split(/\r?\n/);
     const end = lines.findIndex((line, i) => i > 0 && line === "---");
     const manifest = parseYaml(lines.slice(1, end).join("\n"));
 
     expect(manifest.app).toBe("meeting-minutes");
-    expect(manifest.version).toBe("0.3.0");
+    expect(manifest.version).toBe("0.3.1");
     expect(manifest.needs.requires.contracts).toEqual({
       "app-screens": [1],
       "screen-records": [1],
