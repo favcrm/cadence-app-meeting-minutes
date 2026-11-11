@@ -3,14 +3,38 @@
   "app": "meeting-minutes",
   "contexts": [
     {
-      "id": "minutes",
+      "id": "all",
       "label": "Meetings",
-      "prompts": ["Open the latest minutes", "What did we decide?"],
+      "prompts": [
+        "Turn a pasted transcript into minutes",
+        "Open the latest meeting",
+        "What did we decide?"
+      ],
       "record": {
         "label": "Meeting",
-        "prompts": ["Summarise this meeting", "List the follow-ups"]
+        "prompts": [
+          "Consolidate this transcript into summary, decisions and follow-ups",
+          "List open follow-ups from this meeting",
+          "Translate the summary to Traditional Chinese"
+        ]
+      }
+    },
+    {
+      "id": "followups",
+      "label": "Follow-ups",
+      "prompts": [
+        "Which follow-ups are still open?",
+        "Who owns the remaining follow-ups?"
+      ],
+      "record": {
+        "label": "Meeting",
+        "prompts": [
+          "Review the follow-ups for this meeting",
+          "Check every follow-up against the transcript"
+        ]
       }
     }
   ],
+  "subjects": [{ "kind": "meeting", "label": "Meeting" }],
   "presentation": { "showContext": true }
 }

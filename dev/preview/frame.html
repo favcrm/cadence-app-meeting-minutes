@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting minutes Frame</title>
+  </head>
+  <body>
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        const theme = params.get("theme") === "light" ? "light" : "dark";
+        document.documentElement.dataset.theme = theme;
+        const boot = {
+          tag: "minutes",
+          bridge_nonce:
+            params.get("nonce") ||
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          generation: Number(params.get("gen") || "1"),
+          parent_origin: params.get("origin") || window.location.origin,
+        };
+        const script = document.createElement("script");
+        script.type = "application/json";
+        script.id = "cadence-screen-boot";
+        script.textContent = JSON.stringify(boot);
+        document.body.appendChild(script);
+        window.addEventListener("message", (event) => {
+          if (event.data && event.data.type === "cadence-theme") {
+            document.documentElement.dataset.theme =
+              event.data.theme === "light" ? "light" : "dark";
+          }
+        });
+      })();
+    </script>
+    <div id="cadence-screen-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

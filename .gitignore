@@ -1,4 +1,11 @@
 dist/
-node_modules
+__pycache__/
+*.py[cod]
+node_modules/
+.cadence-ui/*
+!.cadence-ui/cadence-screen-ui-1.0.0.tgz
+coverage/
+.env
+.env.*
+!.env.example
 *.log
-.DS_Store

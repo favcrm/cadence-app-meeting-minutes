@@ -1,0 +1,149 @@
+:root {
+  --pv-bg: #0c0e12;
+  --pv-surface: #141820;
+  --pv-border: #252c3a;
+  --pv-text: #eef1f7;
+  --pv-muted: #9aa4b8;
+  --pv-accent: #4d8eff;
+  --pv-warn: #f59e0b;
+  --pv-ok: #10b981;
+}
+
+html[data-theme="light"] {
+  --pv-bg: #f3f5f9;
+  --pv-surface: #ffffff;
+  --pv-border: #d8dee9;
+  --pv-text: #141820;
+  --pv-muted: #586376;
+  --pv-accent: #2563eb;
+  --pv-warn: #d97706;
+  --pv-ok: #059669;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--pv-bg);
+  color: var(--pv-text);
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 13px;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 8px 14px;
+  background: var(--pv-surface);
+  border-bottom: 1px solid var(--pv-border);
+}
+
+.preview-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.preview-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-accent) 18%, transparent);
+  color: var(--pv-accent);
+  border: 1px solid color-mix(in srgb, var(--pv-accent) 40%, transparent);
+}
+
+.preview-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preview-meta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--pv-muted);
+}
+
+.preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--pv-muted);
+  font-size: 12px;
+}
+
+.preview-control select {
+  background: var(--pv-bg);
+  color: var(--pv-text);
+  border: 1px solid var(--pv-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.preview-leave-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--pv-border);
+  color: var(--pv-ok);
+}
+
+.preview-leave-pill[data-unsaved="true"] {
+  color: var(--pv-warn);
+  border-color: color-mix(in srgb, var(--pv-warn) 50%, var(--pv-border));
+}
+
+.preview-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  background: var(--pv-bg);
+}
+
+.preview-stage[data-viewport="mobile"] {
+  padding: 12px;
+}
+
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.preview-stage[data-viewport="mobile"] .preview-frame {
+  width: 390px;
+  max-width: 100%;
+  border: 1px solid var(--pv-border);
+  border-radius: 12px;
+  overflow: hidden;
+}

@@ -1,0 +1,122 @@
+{
+  "contract": "app-storage/v1",
+  "app": "meeting-minutes",
+  "record_kind": "meeting",
+  "schema_version": 1,
+  "compatible_schema_versions": [
+    1
+  ],
+  "default_table": "meetings",
+  "migrations": [
+    {
+      "version": 1,
+      "path": "storage/001-initial.json",
+      "sha256": "sha256:2a6e823fb94515a6e710ab8a2ebb5db7942917f3618b07f52b9ab21bbb8b30cf"
+    }
+  ],
+  "record_search_columns": [
+    "title",
+    "participants_text",
+    "summary",
+    "tags"
+  ],
+  "record_write_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "operation",
+      "before",
+      "after",
+      "provenance"
+    ],
+    "properties": {
+      "operation": {
+        "enum": [
+          "create",
+          "update"
+        ]
+      },
+      "before": {
+        "anyOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "after": {
+        "type": "object"
+      },
+      "provenance": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method"
+            ],
+            "properties": {
+              "method": {
+                "enum": [
+                  "screen_form",
+                  "inline_rename",
+                  "followup_toggle",
+                  "assistant_consolidation"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 280
+              }
+            }
+          }
+        ]
+      }
+    },
+    "if": {
+      "required": [
+        "operation",
+        "before"
+      ],
+      "properties": {
+        "operation": {
+          "const": "update"
+        },
+        "before": {
+          "type": "object",
+          "required": [
+            "title_source"
+          ],
+          "properties": {
+            "title_source": {
+              "const": "user"
+            }
+          }
+        }
+      }
+    },
+    "then": {
+      "required": [
+        "after"
+      ],
+      "properties": {
+        "after": {
+          "type": "object",
+          "required": [
+            "title_source"
+          ],
+          "properties": {
+            "title_source": {
+              "const": "user"
+            }
+          }
+        }
+      }
+    }
+  }
+}

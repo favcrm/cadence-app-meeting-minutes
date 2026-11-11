@@ -1,0 +1,16 @@
+{
+  "schema": "cadence-app-kit-lock/1",
+  "tag": "v0.3.22",
+  "source_sha": "a6bac0774f6bfd81caa1c7834e475d1710562c76",
+  "archive": "cadence-app-toolchain-v0.3.22.tar.gz",
+  "archive_sha256": "05f79c02c2e43f91ea3ef15b28512920f043e848fc057832f108cf0cce98fa30",
+  "version": "0.2.0",
+  "files": {
+    "README.md": "f2d9a3edcde94871b1437145fbe491d175fdeee9dbe90fe7de50647fd0968529",
+    "package.json": "e8e1d90e8f046c7919765eddbbc639818697bb69a6348eb773da6367705cc6b0",
+    "src/index.mjs": "33e7ff47b4317ddb7fc0e7dd35d3a079731314fa2d561e8cb85759e3cd528295",
+    "src/receiver.mjs": "78bbc2220623502049ec55519dccaa5166d4de6edfe2ca7cda02381f5d3bb2ef",
+    "src/refusal.mjs": "daedb1f7a21cb8bc5e362c1c06e75036bd1c13cf1f230d719595fc1d6a2d9172",
+    "types/index.d.ts": "49841c12bf2f502ed0eb7d9ef97a535d872dd0b53e023347ad503dcddc117ccf"
+  }
+}

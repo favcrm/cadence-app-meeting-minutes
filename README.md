@@ -1,134 +1,30 @@
-# Cadence Meeting minutes App
+# Meeting minutes (`meeting-minutes` `0.3.0`)
 
-App identity stays `meeting-minutes`; the repository name does not change
-installation or data identities. Local checkout:
-`/home/ubuntu/Project/cadence-app-meeting-minutes`.
+Structured meeting notes, decisions, follow-ups, and pasted transcripts for hosted Cadence workspaces.
 
-## Status
+## Architecture & Contracts (`v0.3.0`)
 
-Extracted from the Cadence tree under CAD-1505, after CAD-1422 made detached
-app repositories the source of truth. `app/` is the installable bundle:
+- **Bridge receiver**: `@cadence/app-kit@0.2.0` vendored from `cadence-app-toolchain-v0.3.22.tar.gz` (`app-kit/` + `app-kit.lock.json`), accepting `["screen.v2", "screen-records.v1", "screen-surfaces.v1", "crm-locale.v1"]`.
+- **Shared screen components & styling**: `@cadence/screen-ui@1.0.0` (`.cadence-ui/cadence-screen-ui-1.0.0.tgz` + `screen-ui.lock.json`).
+- **Screen assets**: Static framework/client partition (`app/screens/minutes/runtime.js`, `client.js`, `minutes.css`, `screens.json`) declaring `contract: "app-screens/v2"`, `host_contract: "screen-records.v1"`, `may: ["records.call"]`, and sections `All meetings` (`?minutes=all`) + `Follow-ups` (`?minutes=followups`).
+- **App-owned logical storage**: `app/app-storage.json` (`app-storage/v1`, `record_kind: "meeting"`, `default_table: "meetings"`) + `app/storage/001-initial.json`.
+  - User-provided titles (`title_source: "user"`) take precedence over generated headings and are protected against downgrade to `"generated"` in both the client and `record_write_schema`.
+  - Missing follow-up owners or due dates remain `null` (`Unassigned` / `No due date`) and are never fabricated.
+- **Bilingual UI**: Full English (`en`) and written Traditional Chinese (`zh-HK` / `zh-TW`) parity.
+- **Scope**: Pasted notes and timestamped transcripts only. Live microphone batch transcription is tracked separately under `CMM-6` (gated on `CAD-1477`).
 
-- `app.md` — the manifest, including the `app-screens: [1]` requirement
-- `app-chat.json`, `workflows/consolidate.md`, `rubrics/minutes.md`
-- `views/app-views-v1.json` — the data-only descriptor
-- `screens/minutes/` — the app-owned screen (`app-screens/v2`): `screens.json`
-  plus the exact `client.js`/`app.css` bytes it declares
+## Commands
 
-The screen is built from `src/screens/` by `scripts/build-ui-package.mjs` and
-then copied into `app/screens/`. What it can show is bounded by the host's
-read-only projection: run state, the reviewer's decision, and the approved
-minutes text the host publishes. Nothing here starts a run, records audio or
-writes anything — those are host actions.
-
-Version 0.2.1 wraps long run identifiers in narrow detail columns without
-truncating their values; verified with a real run at a 390px viewport.
-
-Version 0.2.2 matches the chat prompt group to the `minutes` screen and
-clarifies that the screen displays scoped runs, not an audio recorder or
-an automatic chat-to-run launcher. Starting consolidation is host-owned.
-
-Version 0.2.3 leads the run form with the transcript, makes the title
-optional with the declared app default `Untitled meeting` — an empty
-Title resolves to it natively, never to a host-invented value, and a
-non-empty title saved as a context default legitimately takes precedence —
-and replaces the empty-state copy with plain transcript-first wording.
-
-Version 0.2.4 treats the existing host default context (currently labelled
-General) as an internal detail: no context picker, raw context ID or version
-subtitle in the minutes screen. Loading and empty states use plain minutes
-language and point to the existing New minutes action. The receiver's scope
-checks and the host's filtering remain unchanged; this does not combine
-contexts, migrate data or remove backend isolation.
-
-Version 0.2.5 drops context from the screen's scope: one workspace is one
-scope (install + digest). The receiver accepts a push with `context_id` absent,
-`""` with `contexts: []`, or a real id from an older host, and still refuses a
-malformed non-empty id. A screen with no host push shows an explicit
-"Host unreachable" state instead of loading forever. No data is migrated and
-backend isolation is unchanged.
-
-## Layout
-
-```text
-app/                     the installable bundle root
-  screens/<tag>/         the app's own screen + its declaration
-src/screens/             authored screen source (entry, receiver, views)
-scripts/                 packaging and the pre-push gate
-docs/                    descriptor companion and notes
+```bash
+pnpm install --frozen-lockfile
+pnpm run typecheck        # tsc --noEmit
+pnpm run build            # build app/screens/minutes/* with pinned provenance
+pnpm run verify           # offline screen/SDK/AST authority check
+pnpm test                 # unit + contract + OIDC publisher dry-run tests
+pnpm run dev              # synthetic localhost preview (http://localhost:3187/dev/preview/)
+sh scripts/pre-push       # full local gate including archive determinism check
 ```
 
-## Offline preview (CAD-1725 / CMM-7)
+## Native vs Hosted Check
 
-From this repository, with a `cadence` build that has `app dev --package`:
-
-```sh
-cadence app dev --package . --port 3190
-```
-
-This validates the bundle, exports the canonical offline frame with
-`cadence app frame-kit --bundle app`, and serves it at
-`http://127.0.0.1:3190/`. It uses the committed `app/screens/minutes` bytes;
-run the build/copy step below first when changing the screen. It loads no host
-data, install or source checkout.
-
-## Build the screen package
-
-The toolchain resolves from a Cadence checkout's `ui/node_modules`; nothing is
-installed into this repository.
-
-```sh
-ln -sfn /home/ubuntu/Project/cadence/ui/node_modules node_modules   # once
-node scripts/build-ui-package.mjs
-cp dist/screens/minutes/{client.js,app.css,screens.json} app/screens/minutes/
-```
-
-## Install
-
-```sh
-cadence app catalog install .
-cadence app catalog approve INSTALL_ID --digest BUNDLE_DIGEST
-```
-
-The app is then reachable at `/apps/meeting-minutes` (CAD-1438 retired the
-`/app-installations/<id>` shape to a compatibility redirect).
-
-## Check before push
-
-`scripts/pre-push` is the local gate and the CI gate. It links `node_modules`
-to `$HOST_SOURCE/ui/node_modules` (default `/home/ubuntu/Project/cadence`),
-runs `node scripts/build-ui-package.mjs`, and requires
-`dist/screens/minutes/{client.js,app.css,screens.json}` to match
-`app/screens/minutes/`. It then runs `cadence app check app`. Set `CADENCE_BIN`
-to the checker executable; otherwise it uses `cadence` on `PATH`. It does not
-install dependencies or change source or `app/`.
-
-The Cadence worktree hook passes `--receipt` to record the checked head and
-exit status. Its optional `--tests` flag runs the same complete app gate;
-this repository has no separate test suite.
-
-```sh
-scripts/pre-push
-```
-
-## CI
-
-`.github/workflows/ci.yml` has one job, `build`. It runs on pull requests,
-pushes to `main`, and merge-queue check requests. The job checks out public
-host `favcrm/cadence` at `1cc99c485d01f5fa27f04a411c375b9afcc31347`, installs
-that checkout's frozen `ui/pnpm-lock.yaml` with Node 22 and pnpm 12.2.1, and
-verifies the checksum-pinned native validator for that same host commit
-(archive member `./cadence`). It then sets `HOST_SOURCE` and `CADENCE_BIN` and
-runs `scripts/pre-push`. Pins:
-
-- archive sha256 `aa32b1259a989b0d4c38a6096ae17cbf8825be2cdd2973d83e633c1f42d96eb5` (21446982 bytes)
-- binary sha256 `3750bfa017bb3ae9ed84396080cdc409f65aeb0ea71d119c7b5eeec3d097a6bd`
-
-A missing archive, digest mismatch, stale screen asset, or rejected package
-fails the job. The token is contents read-only. The job does not install the
-app or change repository settings.
-
-Guarded delivery stays operator-owned. An operator enables the required `build`
-check, protected pull-request and merge-queue delivery, and auto-merge. Native
-reviews and operator approval stay mandatory. Agents do not apply those
-settings.
+`meeting-minutes` `0.3.0` requires `app-storage: [1]`, which is hosted-only. Running `cadence app check app --json` with Cadence `v0.3.22` exits `3` with the expected `app-storage` content refusal while emitting the canonical `digest` and `files` inventory verified by `.github/scripts/assert-app-check.py` and `.github/scripts/publish.mjs`.

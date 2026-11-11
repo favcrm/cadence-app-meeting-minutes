@@ -1,67 +1,39 @@
-#!/bin/sh
-# Shared local and CI gate for this app. Rebuilds the screen, compares the
-# three committed screen files, then runs `cadence app check app`.
-# Dist output is expected. This does not install dependencies or modify
-# source or app/.
+#!/usr/bin/env sh
 set -eu
 
-receipt=0
-for argument in "$@"; do
-  case "$argument" in
-    --receipt) receipt=1 ;;
-    # This app always runs its complete check; there is no separate test suite.
-    --tests) ;;
-    *) echo "usage: scripts/pre-push [--receipt] [--tests]" >&2; exit 2 ;;
-  esac
-done
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$ROOT"
 
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-cd "$root"
+CADENCE_BIN="${CADENCE_BIN:-cadence}"
 
-write_receipt() {
-  status=$?
-  if [ "$receipt" -eq 1 ]; then
-    printf 'head=%s lane=%s kind=%s steps=package:%s rc=%s at=%s\n' \
-      "$(git rev-parse HEAD 2>/dev/null || printf '?')" \
-      "${CADENCE_ALIAS:-${USER:-unknown}}" "${CADENCE_SLOT_KIND:-none}" \
-      "$status" "$status" "$(date +%s)"
-  fi
-}
-trap write_receipt 0
+pnpm run typecheck
+pnpm run build
+pnpm run verify
+python3 scripts/package_app.py check --source app
 
-host=${HOST_SOURCE:-/home/ubuntu/Project/cadence}
-export HOST_SOURCE="$host"
-if [ ! -d "$HOST_SOURCE/ui/node_modules/vite" ]; then
-  echo "pre-push: host UI dependencies are not installed at $HOST_SOURCE/ui/node_modules" >&2
+CHECK_TMP=$(mktemp -d)
+trap 'rm -rf "$CHECK_TMP"' EXIT
+
+set +e
+"$CADENCE_BIN" app check app --json > "$CHECK_TMP/app-check.json"
+status=$?
+set -e
+if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then
+  echo "app check failed with exit ${status}" >&2
+  cat "$CHECK_TMP/app-check.json" >&2 || true
   exit 1
 fi
-ln -sfn "$HOST_SOURCE/ui/node_modules" node_modules
+python3 .github/scripts/assert-app-check.py "$CHECK_TMP/app-check.json"
 
-node scripts/build-ui-package.mjs
+pnpm test
 
-fail=0
-for name in client.js app.css screens.json; do
-  generated="dist/screens/minutes/$name"
-  tracked="app/screens/minutes/$name"
-  if [ ! -f "$generated" ] || [ ! -f "$tracked" ] || ! cmp -s "$generated" "$tracked"; then
-    echo "pre-push: screen asset drift: $name" >&2
-    fail=1
-  fi
-done
-if [ "$fail" -ne 0 ]; then
-  exit 1
-fi
-
-if [ -n "${CADENCE_BIN:-}" ]; then
-  checker=$CADENCE_BIN
-else
-  checker=$(command -v cadence) || {
-    echo "pre-push: cadence is not on PATH; set CADENCE_BIN" >&2
-    exit 1
-  }
-fi
-if [ ! -x "$checker" ]; then
-  echo "pre-push: checker is not executable: $checker" >&2
-  exit 1
-fi
-"$checker" app check app
+python3 scripts/package_app.py build --source app --outdir "$CHECK_TMP/a" > "$CHECK_TMP/build-a.json"
+python3 scripts/package_app.py build --source app --outdir "$CHECK_TMP/b" > "$CHECK_TMP/build-b.json"
+ARCHIVE_A=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['archive'])" "$CHECK_TMP/build-a.json")
+SIDECAR_A=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sidecar'])" "$CHECK_TMP/build-a.json")
+ARCHIVE_B=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['archive'])" "$CHECK_TMP/build-b.json")
+SIDECAR_B=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sidecar'])" "$CHECK_TMP/build-b.json")
+cmp "$ARCHIVE_A" "$ARCHIVE_B"
+cmp "$SIDECAR_A" "$SIDECAR_B"
+python3 scripts/package_app.py verify "$ARCHIVE_A" > /dev/null
+echo "Meeting minutes pre-push gate passed."

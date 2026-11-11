@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "operations": [
+    {
+      "op": "create_table",
+      "table": "meetings",
+      "record_bytes": 262144,
+      "columns": [
+        {
+          "name": "schema",
+          "type": "integer",
+          "nullable": false,
+          "default": 1,
+          "enum": [1]
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false,
+          "default": "Untitled meeting",
+          "max_length": 200
+        },
+        {
+          "name": "title_source",
+          "type": "text",
+          "nullable": false,
+          "default": "generated",
+          "enum": ["user", "generated"]
+        },
+        {
+          "name": "held_at",
+          "type": "text",
+          "nullable": true,
+          "max_length": 40
+        },
+        {
+          "name": "duration_seconds",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default": "draft",
+          "enum": ["draft", "reviewed", "archived"]
+        },
+        {
+          "name": "participants",
+          "type": "json",
+          "nullable": false,
+          "default": [],
+          "json_schema": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          }
+        },
+        {
+          "name": "participants_text",
+          "type": "text",
+          "nullable": false,
+          "default": "",
+          "max_length": 1000
+        },
+        {
+          "name": "tags",
+          "type": "json",
+          "nullable": false,
+          "default": [],
+          "json_schema": {
+            "type": "array",
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9_-]{1,40}$"
+            }
+          }
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "nullable": false,
+          "default": "",
+          "max_length": 8000
+        },
+        {
+          "name": "decisions",
+          "type": "json",
+          "nullable": false,
+          "default": [],
+          "json_schema": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "text"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+                "quote": {
+                  "anyOf": [
+                    { "type": "string", "maxLength": 1000 },
+                    { "type": "null" }
+                  ]
+                },
+                "timestamp": {
+                  "anyOf": [
+                    { "type": "string", "maxLength": 32 },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "followups",
+          "type": "json",
+          "nullable": false,
+          "default": [],
+          "json_schema": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "task", "status"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "task": { "type": "string", "minLength": 1, "maxLength": 1000 },
+                "owner": {
+                  "anyOf": [
+                    { "type": "string", "minLength": 1, "maxLength": 120 },
+                    { "type": "null" }
+                  ]
+                },
+                "due": {
+                  "anyOf": [
+                    { "type": "string", "maxLength": 40 },
+                    { "type": "null" }
+                  ]
+                },
+                "status": { "enum": ["open", "done"] }
+              }
+            }
+          }
+        },
+        {
+          "name": "transcript",
+          "type": "text",
+          "nullable": false,
+          "default": "",
+          "max_length": 96000
+        },
+        {
+          "name": "synthetic",
+          "type": "boolean",
+          "nullable": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "op": "create_index",
+      "table": "meetings",
+      "name": "meetings_status",
+      "columns": ["status"],
+      "unique": false
+    },
+    {
+      "op": "create_index",
+      "table": "meetings",
+      "name": "meetings_held_at",
+      "columns": ["held_at"],
+      "unique": false
+    }
+  ]
+}

@@ -2,23 +2,59 @@
   "contract": "app-screens/v2",
   "app": "meeting-minutes",
   "entry": "client.js",
+  "startup": [
+    "runtime.js",
+    "client.js"
+  ],
   "assets": [
+    {
+      "name": "runtime.js",
+      "media_type": "text/javascript",
+      "size": 191025,
+      "sha256": "sha256:bb4adbdd47069e6476ab8aa41457a0c80601fae78ea56552895d30a27eef6c07"
+    },
     {
       "name": "client.js",
       "media_type": "text/javascript",
-      "sha256": "sha256:3f76bad5f81c25d2ab855fabfc8cdce0c1f3d1ece60dc6c93d325dcfab1184d2",
-      "size": 198330
+      "size": 97816,
+      "sha256": "sha256:8ff17d72c9148341767c449a837b0dbe2dbaf76d41b84bdd80b4cb6ae8d1e1fe"
     },
     {
-      "name": "app.css",
+      "name": "minutes.css",
       "media_type": "text/css",
-      "sha256": "sha256:d2b9c19057b76641bb380c6f70d05599ad776cea7f16d991cf8889e438c160cd",
-      "size": 2626
+      "size": 31279,
+      "sha256": "sha256:2157b8f9aa11becc403e87c397fdff4b94d77686d1e1db5c4f80e883f44a4c92"
     }
   ],
   "provenance": {
-    "source_digest": "sha256:761ab5dd0843f6109f245f886cf2fb92ded0aed73f1ea62ec26d7382c920e395",
-    "sdk_digest": "sha256:def6772b94b3b9b14bbffbf83ac66f17e54c3427fcc42a8b6b1fdc01f1b61499",
-    "toolchain_digest": "sha256:2381344fc0c0f4ef105c69d28164cd2931ebc56154a76b1c4ab3a18c16872801"
+    "source_digest": "sha256:4f77e476ffee84b5b0702c425251f9b74404b80a78fe58fc4b8dbb7de59f4d33",
+    "sdk_digest": "sha256:fd65c974511e63b3996e9fa7e438fb4e39df5f508d11636116ef150fcc123e35",
+    "toolchain_digest": "sha256:e21cfc8222db408abe6ba5a482520639d9cf4b96481c19aff4b4246af8a65e42"
+  },
+  "host_contract": "screen-records.v1",
+  "may": [
+    "records.call"
+  ],
+  "tools": {},
+  "operations": [
+    "records.list",
+    "records.show",
+    "records.create",
+    "records.update",
+    "screen.route.patch"
+  ],
+  "navigation": {
+    "section_query": "minutes",
+    "default_section": "all",
+    "sections": [
+      {
+        "id": "all",
+        "label": "All meetings"
+      },
+      {
+        "id": "followups",
+        "label": "Follow-ups"
+      }
+    ]
   }
 }
