@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting minutes · Synthetic Cadence Preview</title>
+    <link rel="stylesheet" href="./preview.css" />
+  </head>
+  <body>
+    <header class="preview-bar" role="banner">
+      <div class="preview-brand">
+        <span class="preview-badge">SYNTHETIC PREVIEW</span>
+        <strong class="preview-title">Meeting minutes 0.3.0</strong>
+        <span class="preview-meta" id="preview-route-readout">minutes=all</span>
+      </div>
+      <div class="preview-controls" role="group" aria-label="Preview host controls">
+        <label class="preview-control">
+          <span>Section</span>
+          <select id="ctrl-section">
+            <option value="all">All meetings</option>
+            <option value="followups">Follow-ups</option>
+          </select>
+        </label>
+        <label class="preview-control">
+          <span>Locale</span>
+          <select id="ctrl-locale">
+            <option value="en">English (en)</option>
+            <option value="zh-TW">Written zh-HK (zh-TW)</option>
+          </select>
+        </label>
+        <label class="preview-control">
+          <span>Theme</span>
+          <select id="ctrl-theme">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label class="preview-control">
+          <span>Access</span>
+          <select id="ctrl-access">
+            <option value="owner">Owner (read + write)</option>
+            <option value="viewer">Viewer (read-only)</option>
+          </select>
+        </label>
+        <label class="preview-control">
+          <span>Dataset</span>
+          <select id="ctrl-dataset">
+            <option value="populated">Synthetic meetings (4)</option>
+            <option value="empty">Empty workspace</option>
+          </select>
+        </label>
+        <label class="preview-control">
+          <span>Viewport</span>
+          <select id="ctrl-viewport">
+            <option value="desktop">Desktop (fluid)</option>
+            <option value="mobile">Mobile (390px)</option>
+          </select>
+        </label>
+        <span class="preview-leave-pill" id="preview-leave-indicator" data-unsaved="false">
+          Saved
+        </span>
+      </div>
+    </header>
+    <main class="preview-stage" id="preview-stage" data-viewport="desktop">
+      <iframe
+        id="preview-frame"
+        class="preview-frame"
+        title="Meeting minutes preview screen"
+        sandbox="allow-scripts allow-same-origin"
+      ></iframe>
+    </main>
+    <script type="module" src="./host.ts"></script>
+  </body>
+</html>

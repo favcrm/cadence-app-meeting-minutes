@@ -1,9 +1,37 @@
 {
   "name": "cadence-app-meeting-minutes",
   "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "packageManager": "pnpm@12.2.1",
+  "scripts": {
+    "dev": "node scripts/dev-preview.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build_screen.mjs",
+    "verify": "node scripts/verify_screen.mjs",
+    "test": "bun test tests/unit/minutes_screen.test.mjs && bun test tests/unit/i18n_coverage.test.mjs && bun test tests/contract/appkit_channel.test.mjs && bun test tests/contract/locks_and_storage.test.mjs && node --test tests/unit/publish-candidate.test.mjs",
+    "check": "sh scripts/pre-push"
+  },
   "cadence": {
     "app": "meeting-minutes",
-    "dev": "scripts/dev-preview.sh",
-    "check": "cadence app check app"
+    "dev": "node scripts/dev-preview.mjs",
+    "check": "sh scripts/pre-push"
+  },
+  "dependencies": {
+    "@cadence/app-kit": "file:app-kit",
+    "@cadence/screen-ui": "file:.cadence-ui/cadence-screen-ui-1.0.0.tgz",
+    "@hugeicons/core-free-icons": "4.3.0",
+    "@hugeicons/react": "1.1.10",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^21.0.4",
+    "@types/react": "19.2.9",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "5.9.3",
+    "vite": "8.2.2",
+    "yaml": "2.8.1"
   }
 }
