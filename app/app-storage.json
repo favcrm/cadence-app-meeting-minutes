@@ -18,7 +18,10 @@
     "title",
     "participants_text",
     "summary",
-    "tags"
+    "tags",
+    "decisions",
+    "followups",
+    "transcript"
   ],
   "record_write_schema": {
     "type": "object",
