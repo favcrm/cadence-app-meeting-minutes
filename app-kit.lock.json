@@ -1,16 +1,17 @@
 {
   "schema": "cadence-app-kit-lock/1",
-  "tag": "v0.3.22",
-  "source_sha": "a6bac0774f6bfd81caa1c7834e475d1710562c76",
-  "archive": "cadence-app-toolchain-v0.3.22.tar.gz",
-  "archive_sha256": "05f79c02c2e43f91ea3ef15b28512920f043e848fc057832f108cf0cce98fa30",
-  "version": "0.2.0",
+  "source": {
+    "kind": "commit",
+    "repo": "favcrm/cadence",
+    "source_sha": "ec37956158f88a53d372f2c29495665dbe48dd97"
+  },
+  "version": "0.3.0",
   "files": {
-    "README.md": "f2d9a3edcde94871b1437145fbe491d175fdeee9dbe90fe7de50647fd0968529",
-    "package.json": "e8e1d90e8f046c7919765eddbbc639818697bb69a6348eb773da6367705cc6b0",
-    "src/index.mjs": "33e7ff47b4317ddb7fc0e7dd35d3a079731314fa2d561e8cb85759e3cd528295",
-    "src/receiver.mjs": "78bbc2220623502049ec55519dccaa5166d4de6edfe2ca7cda02381f5d3bb2ef",
-    "src/refusal.mjs": "daedb1f7a21cb8bc5e362c1c06e75036bd1c13cf1f230d719595fc1d6a2d9172",
-    "types/index.d.ts": "49841c12bf2f502ed0eb7d9ef97a535d872dd0b53e023347ad503dcddc117ccf"
+    "README.md": "779c962124ca4b008c9f730068e684451a0ce9420f2f1e62512b1f2d4d3c8a60",
+    "package.json": "5008cd880bd66e2bddbece9579e4765bcacb7fe3e3c21cb757146e1dd8a96c88",
+    "src/index.mjs": "9ad9742cefa5b3191a8af7875fe261a130e0a93cf0ed486c1d79fad8da149fff",
+    "src/receiver.mjs": "fe5688ee1db8015459fe2a0593b3abcc0283747604a844191fd17005bf619b35",
+    "src/refusal.mjs": "14d2c4d5b5c7fba227b3d933eddb5ff0f657549ad508d18375e5bd620bc9c403",
+    "types/index.d.ts": "70ca95de73f5fe832479c7d778f319be205eed5ea69c580b4004cedf53945cf7"
   }
 }

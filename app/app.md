@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.3.2'
+version: '0.4.0'
 summary: Keep full meeting transcripts, summaries, decisions and follow-ups in workspace records, with owner-approved assistant consolidation.
 needs:
   connections: []
@@ -33,7 +33,7 @@ listing:
 
 # Meeting minutes
 
-This bundle installs `meeting-minutes` (`0.3.2`) with an app-owned screen
+This bundle installs `meeting-minutes` (`0.4.0`) with an app-owned screen
 (`screens/minutes/`, `app-screens/v2`) built on the pinned `@cadence/app-kit`
 bridge and `@cadence/screen-ui` controls, plus an app-owned `app-storage/v1`
 schema (`app-storage.json` and `storage/001-initial.json`).

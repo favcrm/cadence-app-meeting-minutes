@@ -96,7 +96,7 @@ function pushScreen(): void {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.3.2",
+      version: "0.4.0",
       digest: DIGEST,
       summary:
         "Turn meeting discussions and notes into structured minutes, decisions, and follow-ups.",
@@ -319,15 +319,9 @@ window.addEventListener("message", (event) => {
       pushScreen();
       return;
     }
-    if (msg.op === "state" && typeof msg.data === "string") {
-      try {
-        const parsed = JSON.parse(msg.data) as { unsaved?: boolean };
-        const unsaved = parsed.unsaved === true;
-        leaveIndicator.dataset.unsaved = unsaved ? "true" : "false";
-        leaveIndicator.textContent = unsaved ? "Unsaved draft" : "Saved";
-      } catch {
-        // ignore
-      }
+    if (msg.op === "leave" && msg.v === 2 && typeof msg.unsaved === "boolean") {
+      leaveIndicator.dataset.unsaved = msg.unsaved ? "true" : "false";
+      leaveIndicator.textContent = msg.unsaved ? "Unsaved draft" : "Saved";
       return;
     }
     if (msg.op === "call" && typeof msg.id === "string" && typeof msg.verb === "string") {

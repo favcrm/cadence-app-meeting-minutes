@@ -438,7 +438,7 @@ describe("Meeting minutes domain model & screen interactions", () => {
         install_id: INSTALL_ID,
         name: "foreign-app",
         title: "Foreign",
-        version: "0.3.2",
+        version: "0.4.0",
         digest: DIGEST,
         summary: "Foreign",
       },
@@ -448,7 +448,7 @@ describe("Meeting minutes domain model & screen interactions", () => {
     });
 
     await waitFor(() =>
-      (mountedEl.textContent ?? "").includes("Invalid Meeting minutes scope projection"),
+      (mountedEl.textContent ?? "").includes("Invalid screen scope projection"),
     );
     expect(mountedEl.textContent).not.toContain("Reading meetings…");
   });
