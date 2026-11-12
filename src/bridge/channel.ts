@@ -183,7 +183,7 @@ export class Channel {
     };
     const publish = (unsaved: boolean) => {
       if (typeof unsaved !== "boolean" || !live()) return;
-      receiver.state(JSON.stringify({ contract: "minutes-leave.v1", unsaved }));
+      receiver.state(JSON.stringify({ contract: "crm-leave.v1", unsaved }));
     };
     return {
       publish,

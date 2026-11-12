@@ -48,6 +48,9 @@ export function useScope() {
 export function scopeError() {
   return error;
 }
+export function useScopeError(): string | null {
+  return useSyncExternalStore(subscribeScope, scopeError);
+}
 export function onScopeRetired(f: () => void) {
   retireListeners.add(f);
   return () => {
@@ -118,6 +121,18 @@ const PUSH_KEYS = [
   "presentation_locale",
 ] as const;
 
+/**
+ * Host-local presentation verbs (`CAD-1777` / `SOC-55`) advertised alongside
+ * records operations when `screen-surfaces.v1` is negotiated.
+ */
+export const HOST_SURFACE_ACTIONS = [
+  "screen.drawer.open",
+  "screen.drawer.close",
+  "screen.drawer.context",
+] as const;
+
+const ADMITTED_PUSH_ACTIONS: readonly string[] = [...OPERATIONS, ...HOST_SURFACE_ACTIONS];
+
 export function acceptPush(p: Record<string, unknown>): void {
   if (
     !exact(p, PUSH_KEYS) ||
@@ -126,7 +141,7 @@ export function acceptPush(p: Record<string, unknown>): void {
     !contextToken(p.context_id) ||
     !digest(p.digest) ||
     !Array.isArray(p.actions) ||
-    !p.actions.every((a) => typeof a === "string" && OPERATIONS.includes(a)) ||
+    !p.actions.every((a) => typeof a === "string" && ADMITTED_PUSH_ACTIONS.includes(a)) ||
     new Set(p.actions).size !== p.actions.length
   ) {
     invalid();

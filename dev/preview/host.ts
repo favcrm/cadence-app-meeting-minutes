@@ -69,7 +69,15 @@ function updateReadout(): void {
 
 function currentActions(): string[] {
   return access === "owner"
-    ? ["records.list", "records.show", "records.create", "records.update", "screen.route.patch"]
+    ? [
+        "records.list",
+        "records.show",
+        "records.create",
+        "records.update",
+        "screen.route.patch",
+        "screen.drawer.open",
+        "screen.drawer.close",
+      ]
     : ["records.list", "records.show", "screen.route.patch"];
 }
 
@@ -88,7 +96,7 @@ function pushScreen(): void {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.3.1",
+      version: "0.3.2",
       digest: DIGEST,
       summary:
         "Turn meeting discussions and notes into structured minutes, decisions, and follow-ups.",

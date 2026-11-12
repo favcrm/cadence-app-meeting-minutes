@@ -142,7 +142,26 @@ function mountWithMockHost({
         digest: DIGEST,
         summary: "Meeting minutes",
       },
-      actions: ["records.list", "records.show", "records.create", "records.update", "screen.route.patch"],
+      actions:
+        surfaceRole === "drawer"
+          ? [
+              "records.list",
+              "records.show",
+              "records.create",
+              "records.update",
+              "screen.route.patch",
+              "screen.drawer.close",
+              "screen.drawer.context",
+            ]
+          : [
+              "records.list",
+              "records.show",
+              "records.create",
+              "records.update",
+              "screen.route.patch",
+              "screen.drawer.open",
+              "screen.drawer.close",
+            ],
       route: { ...currentRoute },
       read_observations: [],
     });
@@ -373,5 +392,64 @@ describe("Meeting minutes domain model & screen interactions", () => {
 
     await waitFor(() => drawerMount.container.querySelector(".mm-hosted-drawer") !== null);
     expect(drawerMount.container.querySelector(".mm-frame-drawer")).toBeNull();
+  });
+
+  test("renders ErrorNotice immediately instead of hanging on loading when initial scope push is refused", async () => {
+    let hostPort = null;
+    channel.start({
+      boot: {
+        tag: "minutes",
+        bridge_nonce: NONCE,
+        generation: 9,
+        parent_origin: "http://localhost:3187",
+      },
+      parent: {
+        postMessage(_msg, _origin, transfer) {
+          hostPort = transfer[0];
+        },
+      },
+    });
+
+    mountedEl = document.createElement("div");
+    document.body.appendChild(mountedEl);
+    mountedRoot = createRoot(mountedEl);
+    mountedRoot.render(React.createElement(MinutesScreen));
+
+    await waitFor(() => (mountedEl.textContent ?? "").includes("Reading meetings…"));
+
+    const readyPromise = new Promise((resolve) => {
+      hostPort.onmessage = (event) => {
+        if (event.data?.op === "ready") resolve(event.data);
+      };
+    });
+    hostPort.start();
+    await readyPromise;
+
+    // Send a push with an invalid installation name to trigger acceptPush refusal.
+    hostPort.postMessage({
+      v: 2,
+      op: "screen",
+      tag: "minutes",
+      install_id: INSTALL_ID,
+      context_id: "org-ui",
+      digest: DIGEST,
+      presentation_locale: "en",
+      installation: {
+        install_id: INSTALL_ID,
+        name: "foreign-app",
+        title: "Foreign",
+        version: "0.3.2",
+        digest: DIGEST,
+        summary: "Foreign",
+      },
+      actions: ["records.list"],
+      route: { section: "all", view: "list", record_id: null, segment_id: null },
+      read_observations: [],
+    });
+
+    await waitFor(() =>
+      (mountedEl.textContent ?? "").includes("Invalid Meeting minutes scope projection"),
+    );
+    expect(mountedEl.textContent).not.toContain("Reading meetings…");
   });
 });
