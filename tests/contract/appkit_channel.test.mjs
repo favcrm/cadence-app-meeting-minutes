@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createChannel } from "../../src/bridge/channel.ts";
-import { resetScopeForTests } from "../../src/bridge/scope.ts";
+import { admitted, createChannel } from "../../src/bridge/channel.ts";
+import { acceptPush, getScope, resetScopeForTests } from "../../src/bridge/scope.ts";
 import { cleanArgs, SCREEN_SERVICE_ARGS_BYTES } from "../../src/bridge/services.ts";
 
 const NONCE = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -158,5 +158,100 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
         profile: { transcript: oversizedTranscript },
       }),
     ).toThrow(/16 KiB wire budget/);
+  });
+
+  test("admits hosted screen-surfaces.v1 drawer verbs on push and publishes crm-leave.v1 state", async () => {
+    resetScopeForTests();
+    let hostPort = null;
+    const states = [];
+
+    const ch = createChannel();
+    ch.start({
+      boot: {
+        tag: "minutes",
+        bridge_nonce: NONCE,
+        generation: 7,
+        parent_origin: "https://demo-company.cadencecloud.app",
+      },
+      parent: {
+        postMessage(_msg, _origin, transfer) {
+          hostPort = transfer[0];
+        },
+      },
+    });
+
+    const readyPromise = new Promise((resolve) => {
+      hostPort.onmessage = (event) => {
+        if (event.data?.op === "ready") resolve(event.data);
+      };
+    });
+    hostPort.start();
+    await readyPromise;
+
+    hostPort.onmessage = (event) => {
+      if (event.data?.op === "state") states.push(JSON.parse(event.data.data));
+    };
+
+    hostPort.postMessage({ v: 1, op: "surface", role: "primary", modal: false });
+    hostPort.postMessage(
+      makePush({
+        context_id: "default",
+        presentation_locale: "zh-TW",
+        contexts: [{ id: "default", label: "Meeting minutes" }],
+        runs: [],
+        outbox: [],
+        publish_intents: { status: "ok", withheld: 0, rows: [] },
+        defaults: {},
+        readiness: { workflows: {} },
+        now: 1794445512,
+        actions: [
+          "records.list",
+          "records.show",
+          "records.create",
+          "records.update",
+          "screen.route.patch",
+          "screen.drawer.open",
+          "screen.drawer.close",
+        ],
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 15));
+
+    const scope = getScope();
+    expect(scope).toBeTruthy();
+    expect(scope.presentationLocale).toBe("zh-HK");
+    expect(admitted("records.create", scope.actions)).toBe(true);
+    expect(admitted("screen.drawer.open", scope.actions)).toBe(false);
+
+    const leave = ch.ownMinutesLeaveState();
+    expect(leave).toBeTruthy();
+    leave.publish(true);
+    leave.release();
+    await new Promise((r) => setTimeout(r, 15));
+    expect(states).toEqual([
+      { contract: "crm-leave.v1", unsaved: true },
+      { contract: "crm-leave.v1", unsaved: false },
+    ]);
+
+    // Drawer child verbs (close + context) are also accepted, while unknown verbs still fail closed.
+    resetScopeForTests();
+    acceptPush(
+      makePush({
+        actions: ["records.list", "records.show", "records.update", "screen.drawer.close", "screen.drawer.context"],
+      }),
+    );
+    expect(getScope()?.actions).toContain("screen.drawer.context");
+
+    resetScopeForTests();
+    expect(() =>
+      acceptPush(
+        makePush({
+          actions: ["records.list", "records.delete"],
+        }),
+      ),
+    ).toThrow(/Invalid Meeting minutes scope projection/);
+
+    ch.resetForTests();
+    resetScopeForTests();
   });
 });

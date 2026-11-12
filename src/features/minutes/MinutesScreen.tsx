@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { admitted, channel, useSurface } from "../../bridge/channel";
 import { FrameNavigationAdapter, patchRoute } from "../../bridge/route";
-import { scopeError, useScope } from "../../bridge/scope";
+import { useScope, useScopeError } from "../../bridge/scope";
 import { onWrite, serviceCall } from "../../bridge/services";
 import FollowupsSection from "./FollowupsSection";
 import { MinutesLocaleProvider, useMinutesText } from "./i18n";
@@ -34,6 +34,7 @@ const PAGE_LIMIT = 25;
 
 function MinutesScreenInner() {
   const snapshot = useScope();
+  const scopeErr = useScopeError();
   const surface = useSurface();
   const { locale, t } = useMinutesText();
 
@@ -119,8 +120,7 @@ function MinutesScreenInner() {
   }, [committedQuery, currentCursor, loadMeetings, snapshot]);
 
   if (!snapshot) {
-    const err = scopeError();
-    if (err) return <ErrorNotice>{err}</ErrorNotice>;
+    if (scopeErr) return <ErrorNotice>{scopeErr}</ErrorNotice>;
     return <Loading>{t("loadingMeetings")}</Loading>;
   }
 
