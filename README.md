@@ -1,10 +1,10 @@
-# Meeting minutes (`meeting-minutes` `0.3.1`)
+# Meeting minutes (`meeting-minutes` `0.4.0`)
 
 Structured meeting notes, decisions, follow-ups, and pasted transcripts for hosted Cadence workspaces.
 
-## Architecture & Contracts (`v0.3.1`)
+## Architecture & Contracts (`v0.4.0`)
 
-- **Bridge receiver**: `@cadence/app-kit@0.2.0` vendored from `cadence-app-toolchain-v0.3.22.tar.gz` (`app-kit/` + `app-kit.lock.json`), accepting `["screen.v2", "screen-records.v1", "screen-surfaces.v1", "crm-locale.v1"]`.
+- **Bridge receiver**: `@cadence/app-kit@0.3.0` (`createScreenBridge`) vendored from `favcrm/cadence` `ec37956158f88a53d372f2c29495665dbe48dd97` (`app-kit/` + `app-kit.lock.json`), accepting `["screen.v2", "screen-surfaces.v1", "screen-records.v1", "screen-locale.v1"]` and emitting `{ v: 2, op: "leave", unsaved }`.
 - **Shared screen components & styling**: `@cadence/screen-ui@1.0.0` (`.cadence-ui/cadence-screen-ui-1.0.0.tgz` + `screen-ui.lock.json`).
 - **Screen assets**: Static framework/client partition (`app/screens/minutes/runtime.js`, `client.js`, `minutes.css`, `screens.json`) declaring `contract: "app-screens/v2"`, `host_contract: "screen-records.v1"`, `may: ["records.call"]`, and sections `All meetings` (`?minutes=all`) + `Follow-ups` (`?minutes=followups`).
 - **App-owned logical storage**: `app/app-storage.json` (`app-storage/v1`, `record_kind: "meeting"`, `default_table: "meetings"`) + `app/storage/001-initial.json`.

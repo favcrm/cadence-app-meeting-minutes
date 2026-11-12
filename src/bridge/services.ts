@@ -1,6 +1,6 @@
 import { ApiError } from "@cadence/screen-ui";
 import { channel } from "./channel";
-import { assertCurrentScope, requireOperation, type DisplayScope } from "./scope";
+import type { DisplayScope } from "./scope";
 
 type Bag = Record<string, unknown>;
 
@@ -58,25 +58,12 @@ export function cleanArgs(verb: string, args: Bag): Bag {
   return value;
 }
 
-const writeListeners = new Set<() => void>();
-export const onWrite = (f: () => void) => {
-  writeListeners.add(f);
-  return () => {
-    writeListeners.delete(f);
-  };
-};
-const written = () => writeListeners.forEach((f) => f());
+export const onWrite = (f: () => void) => channel.onWrite(f);
 
 export async function serviceCall<T = unknown, K extends keyof CallArgs = keyof CallArgs>(
   scope: DisplayScope,
   verb: K,
   args: CallArgs[K],
 ): Promise<T> {
-  assertCurrentScope(scope);
-  requireOperation(verb);
-  const result = (await channel.request(verb, cleanArgs(verb, args as Bag))) as T;
-  if (verb === "records.create" || verb === "records.update") {
-    written();
-  }
-  return result;
+  return channel.call<T, K>(scope, verb, args);
 }
