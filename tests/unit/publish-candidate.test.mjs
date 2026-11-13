@@ -29,7 +29,7 @@ function buildAppCheckReport(tempDir) {
   return reportPath;
 }
 
-test("publish.mjs DRY_RUN succeeds on refs/tags/v0.5.0 and refuses wrong tag or repository", () => {
+test("publish.mjs DRY_RUN succeeds on refs/tags/v0.6.0 and refuses wrong tag or repository", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "minutes-pub-test-"));
   try {
     const reportPath = buildAppCheckReport(tempDir);
@@ -40,7 +40,7 @@ test("publish.mjs DRY_RUN succeeds on refs/tags/v0.5.0 and refuses wrong tag or 
       EXPECTED_REPOSITORY: "favcrm/cadence-app-meeting-minutes",
       GITHUB_REPOSITORY: "favcrm/cadence-app-meeting-minutes",
       GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
-      GITHUB_REF: "refs/tags/v0.5.0",
+      GITHUB_REF: "refs/tags/v0.6.0",
       DRY_RUN: "1",
     };
 
@@ -52,10 +52,10 @@ test("publish.mjs DRY_RUN succeeds on refs/tags/v0.5.0 and refuses wrong tag or 
     assert.equal(ok.status, 0, ok.stderr);
     const parsed = JSON.parse(ok.stdout);
     assert.equal(parsed.entry.id, "meeting-minutes");
-    assert.equal(parsed.entry.version, "0.5.0");
+    assert.equal(parsed.entry.version, "0.6.0");
     assert.equal(
       parsed.entry.artifact.path,
-      "marketplace/releases/meeting-minutes/0.5.0/upload.json",
+      "marketplace/releases/meeting-minutes/0.6.0/upload.json",
     );
     assert.match(parsed.entry.digest, /^sha256:[0-9a-f]{64}$/);
     assert.equal(parsed.native.ok, false);
@@ -67,7 +67,7 @@ test("publish.mjs DRY_RUN succeeds on refs/tags/v0.5.0 and refuses wrong tag or 
       encoding: "utf8",
     });
     assert.notEqual(badTag.status, 0);
-    assert.match(badTag.stderr, /refs\/tags\/v0\.5\.0/);
+    assert.match(badTag.stderr, /refs\/tags\/v0\.6\.0/);
 
     const badRepo = spawnSync("node", [".github/scripts/publish.mjs"], {
       cwd: ROOT,

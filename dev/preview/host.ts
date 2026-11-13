@@ -1,3 +1,8 @@
+import type {
+  ScreenAudioMode,
+  ScreenAudioSessionPhase,
+  ScreenAudioSessionSnapshot,
+} from "@cadence/app-kit";
 import type { MeetingProfile } from "../../src/features/minutes/types";
 import { createSeedMeetings, syntheticDigest, type SyntheticMeetingRow } from "./fixtures";
 
@@ -5,9 +10,10 @@ type LocaleOption = "en" | "zh-TW";
 type ThemeOption = "dark" | "light";
 type AccessOption = "owner" | "viewer";
 type DatasetOption = "populated" | "empty";
+type SectionOption = "all" | "new" | "followups";
 
 interface RouteState {
-  section: "all" | "followups";
+  section: SectionOption;
   view: "list" | "new";
   record_id: string | null;
   segment_id: string | null;
@@ -36,6 +42,7 @@ let access: AccessOption = "owner";
 let dataset: DatasetOption = "populated";
 let generation = 1;
 let digestSeq = 50;
+let sessionSeq = 0;
 let activePort: MessagePort | null = null;
 let meetings: SyntheticMeetingRow[] = createSeedMeetings();
 let route: RouteState = {
@@ -44,6 +51,57 @@ let route: RouteState = {
   record_id: null,
   segment_id: null,
 };
+
+let audioTimer: number | null = null;
+let audioState: ScreenAudioSessionSnapshot = createIdleAudioSnapshot();
+
+function createIdleAudioSnapshot(mode: ScreenAudioMode = "record"): ScreenAudioSessionSnapshot {
+  return {
+    session_id: "",
+    mode,
+    phase: "idle",
+    held_at: "",
+    elapsed_seconds: 0,
+    level: 0,
+    peak: 0,
+    segments_total: 0,
+    segments_done: 0,
+    segments_in_flight: 0,
+    segments_failed: 0,
+    no_speech_segments: 0,
+    transcript: "",
+    error: null,
+  };
+}
+
+function stopAudioTimer(): void {
+  if (audioTimer !== null) {
+    window.clearInterval(audioTimer);
+    audioTimer = null;
+  }
+}
+
+function emitAudioEvent(next: ScreenAudioSessionSnapshot): void {
+  audioState = next;
+  activePort?.postMessage({
+    v: 2,
+    op: "audio-session-event",
+    state: next,
+  });
+}
+
+function sampleLines(): [string, string] {
+  if (locale === "zh-TW") {
+    return [
+      "[00:08] 梁嘉敏：確定下星期二尖沙咀海港城門市開幕排更同物資清單。",
+      "[00:42] 黃俊傑：我星期五前整理好供應商送貨時間表，並發畀大家確認。",
+    ];
+  }
+  return [
+    "[00:08] Carmen Leung: Confirm Harbour City launch roster and logistics checklist for next Tuesday.",
+    "[00:42] Alex Wong: I will circulate the vendor delivery schedule before Friday for sign-off.",
+  ];
+}
 
 function toWireRecord(row: SyntheticMeetingRow, includeHistory = false) {
   return {
@@ -75,8 +133,6 @@ function currentActions(): string[] {
         "records.create",
         "records.update",
         "screen.route.patch",
-        "screen.drawer.open",
-        "screen.drawer.close",
       ]
     : ["records.list", "records.show", "screen.route.patch"];
 }
@@ -97,7 +153,7 @@ function pushScreen(): void {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.5.0",
+      version: "0.6.0",
       digest: DIGEST,
       summary:
         "Turn meeting discussions and notes into structured minutes, decisions, and follow-ups.",
@@ -122,20 +178,195 @@ function matchesQuery(row: SyntheticMeetingRow, rawQuery: string | undefined): b
   return hay.includes(q);
 }
 
+function handleAudioSession(id: string, msg: Record<string, unknown>): void {
+  if (!activePort) return;
+  const replyOk = (state: ScreenAudioSessionSnapshot) =>
+    activePort?.postMessage({ v: 2, op: "audio-session-reply", id, ok: true, data: state });
+  const replyErr = (code: string, text: string) =>
+    activePort?.postMessage({ v: 2, op: "audio-session-reply", id, ok: false, refusal: { code, text } });
+
+  const action = msg.action;
+  if (access !== "owner" && action !== "cancel") {
+    replyErr("forbidden", "Audio capture requires owner access.");
+    return;
+  }
+
+  if (action === "start") {
+    stopAudioTimer();
+    const sessionId = `aud-prev-${++sessionSeq}`;
+    const heldAt = "2026-11-13T04:00:00Z";
+    const [line1, line2] = sampleLines();
+    const started: ScreenAudioSessionSnapshot = {
+      session_id: sessionId,
+      mode: "record",
+      phase: "recording",
+      held_at: heldAt,
+      elapsed_seconds: 1,
+      level: 58,
+      peak: 76,
+      segments_total: 1,
+      segments_done: 1,
+      segments_in_flight: 0,
+      segments_failed: 0,
+      no_speech_segments: 0,
+      transcript: line1,
+      error: null,
+    };
+    emitAudioEvent(started);
+    replyOk(started);
+
+    let tick = 1;
+    audioTimer = window.setInterval(() => {
+      if (audioState.session_id !== sessionId || audioState.phase !== "recording") return;
+      tick += 1;
+      const level = 38 + ((tick * 19) % 44);
+      const peak = Math.min(96, level + 16);
+      const hasSecondLine = tick >= 2;
+      emitAudioEvent({
+        ...audioState,
+        elapsed_seconds: tick,
+        level,
+        peak,
+        segments_total: hasSecondLine ? 2 : 1,
+        segments_done: hasSecondLine ? 2 : 1,
+        transcript: hasSecondLine ? `${line1}\n${line2}` : line1,
+      });
+    }, 600);
+    return;
+  }
+
+  if (action === "pause") {
+    if (audioState.phase !== "recording") {
+      replyErr("conflict", "No active recording to pause.");
+      return;
+    }
+    const paused: ScreenAudioSessionSnapshot = {
+      ...audioState,
+      phase: "paused",
+      level: 0,
+      peak: 0,
+    };
+    emitAudioEvent(paused);
+    replyOk(paused);
+    return;
+  }
+
+  if (action === "resume") {
+    if (audioState.phase !== "paused") {
+      replyErr("conflict", "Session is not paused.");
+      return;
+    }
+    const resumed: ScreenAudioSessionSnapshot = {
+      ...audioState,
+      phase: "recording",
+      level: 52,
+      peak: 70,
+    };
+    emitAudioEvent(resumed);
+    replyOk(resumed);
+    return;
+  }
+
+  if (action === "stop") {
+    stopAudioTimer();
+    const [line1, line2] = sampleLines();
+    const finalTranscript = audioState.transcript.trim() || `${line1}\n${line2}`;
+    const ready: ScreenAudioSessionSnapshot = {
+      ...audioState,
+      session_id: audioState.session_id || `aud-prev-${++sessionSeq}`,
+      mode: "record",
+      phase: "ready",
+      held_at: audioState.held_at || "2026-11-13T04:00:00Z",
+      elapsed_seconds: Math.max(85, audioState.elapsed_seconds),
+      level: 0,
+      peak: 0,
+      segments_total: Math.max(2, audioState.segments_total),
+      segments_done: Math.max(2, audioState.segments_done),
+      segments_in_flight: 0,
+      transcript: finalTranscript,
+      error: null,
+    };
+    emitAudioEvent(ready);
+    replyOk(ready);
+    return;
+  }
+
+  if (action === "upload") {
+    stopAudioTimer();
+    const sessionId = `aud-prev-${++sessionSeq}`;
+    const lastModified =
+      typeof msg.last_modified === "number" && Number.isSafeInteger(msg.last_modified) && msg.last_modified > 0
+        ? new Date(msg.last_modified).toISOString().replace(/\.\d{3}Z$/, "Z")
+        : "2026-11-13T04:00:00Z";
+    const [line1, line2] = sampleLines();
+    const transcribing: ScreenAudioSessionSnapshot = {
+      session_id: sessionId,
+      mode: "upload",
+      phase: "transcribing",
+      held_at: lastModified,
+      elapsed_seconds: 125,
+      level: 0,
+      peak: 0,
+      segments_total: 2,
+      segments_done: 1,
+      segments_in_flight: 1,
+      segments_failed: 0,
+      no_speech_segments: 0,
+      transcript: line1,
+      error: null,
+    };
+    emitAudioEvent(transcribing);
+    const ready: ScreenAudioSessionSnapshot = {
+      ...transcribing,
+      phase: "ready",
+      segments_done: 2,
+      segments_in_flight: 0,
+      transcript: `${line1}\n${line2}`,
+    };
+    emitAudioEvent(ready);
+    replyOk(ready);
+    return;
+  }
+
+  if (action === "retry") {
+    const ready: ScreenAudioSessionSnapshot = {
+      ...audioState,
+      phase: "ready" as ScreenAudioSessionPhase,
+      segments_failed: 0,
+      segments_in_flight: 0,
+      error: null,
+    };
+    emitAudioEvent(ready);
+    replyOk(ready);
+    return;
+  }
+
+  if (action === "cancel") {
+    stopAudioTimer();
+    const idle = createIdleAudioSnapshot(audioState.mode);
+    emitAudioEvent(idle);
+    replyOk(idle);
+    return;
+  }
+
+  replyErr("invalid_argument", `Unsupported audio-session action: ${String(action)}`);
+}
+
 function handleCall(id: string, verb: string, args: Record<string, unknown>): void {
   if (!activePort) return;
   const replyOk = (data: unknown) => activePort?.postMessage({ v: 2, op: "reply", id, ok: true, data });
   const replyErr = (code: string, text: string) =>
     activePort?.postMessage({ v: 2, op: "reply", id, ok: false, refusal: { code, text } });
 
-  if (verb === "screen.drawer.open" || verb === "screen.drawer.close") {
-    replyOk({ ok: true });
-    return;
-  }
-
   if (verb === "screen.route.patch") {
-    const nextSection =
-      args.section === "followups" ? "followups" : args.section === "all" ? "all" : route.section;
+    const nextSection: SectionOption =
+      args.section === "followups"
+        ? "followups"
+        : args.section === "new"
+          ? "new"
+          : args.section === "all"
+            ? "all"
+            : route.section;
     const nextView = args.view === "new" ? "new" : args.view === "list" ? "list" : route.view;
     const nextRecord =
       args.record_id === null
@@ -146,7 +377,7 @@ function handleCall(id: string, verb: string, args: Record<string, unknown>): vo
     route = {
       section: nextSection,
       view: nextRecord ? "list" : nextView,
-      record_id: nextView === "new" ? null : nextRecord,
+      record_id: nextSection === "new" || nextView === "new" ? null : nextRecord,
       segment_id: null,
     };
     replyOk({ route: { ...route } });
@@ -303,6 +534,8 @@ window.addEventListener("message", (event) => {
   ) {
     return;
   }
+  stopAudioTimer();
+  audioState = createIdleAudioSnapshot();
   if (activePort) {
     try {
       activePort.close();
@@ -316,7 +549,6 @@ window.addEventListener("message", (event) => {
     const msg = portEvent.data;
     if (!msg || typeof msg !== "object") return;
     if (msg.op === "ready") {
-      port.postMessage({ v: 1, op: "surface", role: "primary", modal: false });
       pushScreen();
       return;
     }
@@ -325,34 +557,8 @@ window.addEventListener("message", (event) => {
       leaveIndicator.textContent = msg.unsaved ? "Unsaved draft" : "Saved";
       return;
     }
-    if (msg.op === "audio" && msg.v === 2 && typeof msg.id === "string") {
-      if (access !== "owner") {
-        port.postMessage({
-          v: 2,
-          op: "audio-reply",
-          id: msg.id,
-          ok: false,
-          refusal: { code: "forbidden", text: "Audio capture requires owner access." },
-        });
-        return;
-      }
-      const isUpload = msg.mode === "upload";
-      const sampleTranscript =
-        locale === "zh-TW"
-          ? "[00:08] 梁嘉敏：確定下星期二尖沙咀海港城門市開幕排更同物資清單。\n[01:14] 黃俊傑：我星期五前整理好供應商送貨時間表。"
-          : "[00:08] Carmen Leung: Confirm Harbour City launch roster and logistics checklist for next Tuesday.\n[01:14] Alex Wong: I will circulate the vendor delivery schedule before Friday.";
-      port.postMessage({
-        v: 2,
-        op: "audio-reply",
-        id: msg.id,
-        ok: true,
-        data: {
-          transcript: sampleTranscript,
-          duration_seconds: 125,
-          held_at: "2026-11-13T04:00:00Z",
-          source: isUpload ? "upload" : "recording",
-        },
-      });
+    if (msg.op === "audio-session" && msg.v === 2 && typeof msg.id === "string") {
+      handleAudioSession(msg.id, msg as Record<string, unknown>);
       return;
     }
     if (msg.op === "call" && typeof msg.id === "string" && typeof msg.verb === "string") {
@@ -363,6 +569,8 @@ window.addEventListener("message", (event) => {
 });
 
 function bootFrame(): void {
+  stopAudioTimer();
+  audioState = createIdleAudioSnapshot();
   generation += 1;
   leaveIndicator.dataset.unsaved = "false";
   leaveIndicator.textContent = "Saved";
@@ -375,8 +583,9 @@ function bootFrame(): void {
 }
 
 ctrlSection.addEventListener("change", () => {
+  const val = ctrlSection.value;
   route = {
-    section: ctrlSection.value === "followups" ? "followups" : "all",
+    section: val === "followups" ? "followups" : val === "new" ? "new" : "all",
     view: "list",
     record_id: null,
     segment_id: null,

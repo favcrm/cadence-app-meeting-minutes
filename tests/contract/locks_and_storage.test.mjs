@@ -8,15 +8,15 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
 describe("Toolchain locks, app-storage/v1 migration integrity, and manifest honesty", () => {
-  test("app-kit.lock.json matches vendored @cadence/app-kit@0.4.0 files byte-for-byte", () => {
+  test("app-kit.lock.json matches vendored @cadence/app-kit@0.5.0 files byte-for-byte", () => {
     const lock = JSON.parse(readFileSync(resolve(ROOT, "app-kit.lock.json"), "utf8"));
     expect(lock.schema).toBe("cadence-app-kit-lock/1");
     expect(lock.source).toEqual({
       kind: "commit",
       repo: "favcrm/cadence",
-      source_sha: "278834fe9590e68b59fd84331a9f3e4eff6fefb2",
+      source_sha: "1918854fb264104789b80720369a215ac3f8c580",
     });
-    expect(lock.version).toBe("0.4.0");
+    expect(lock.version).toBe("0.5.0");
     for (const [rel, expectedHash] of Object.entries(lock.files)) {
       const actualHash = sha256(readFileSync(resolve(ROOT, "app-kit", rel)));
       expect(actualHash).toBe(expectedHash);
@@ -57,7 +57,7 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(writeSchema.then.properties.after.properties.title_source.const).toBe("user");
   });
 
-  test("app/app.md declares 0.5.0, required contracts, and no forbidden pricing keys", () => {
+  test("app/app.md declares 0.6.0, required contracts, and no forbidden pricing keys", () => {
     const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8"));
     const raw = readFileSync(resolve(ROOT, "app/app.md"), "utf8");
     const lines = raw.split(/\r?\n/);
@@ -65,7 +65,7 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     const manifest = parseYaml(lines.slice(1, end).join("\n"));
 
     expect(manifest.app).toBe("meeting-minutes");
-    expect(manifest.version).toBe("0.5.0");
+    expect(manifest.version).toBe("0.6.0");
     expect(pkg.version).toBe(manifest.version);
     expect(manifest.needs.requires.contracts).toEqual({
       "app-screens": [1],

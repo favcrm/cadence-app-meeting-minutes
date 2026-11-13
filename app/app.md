@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.5.0'
+version: '0.6.0'
 summary: Keep meeting transcripts, summaries, decisions and follow-ups in workspace records, with host audio capture and approved assistant consolidation.
 needs:
   connections: []
@@ -33,20 +33,20 @@ listing:
 
 # Meeting minutes
 
-This bundle installs `meeting-minutes` (`0.5.0`) with an app-owned screen
+This bundle installs `meeting-minutes` (`0.6.0`) with an app-owned screen
 (`screens/minutes/`, `app-screens/v2`) built on the pinned `@cadence/app-kit`
 bridge and `@cadence/screen-ui` controls, plus an app-owned `app-storage/v1`
 schema (`app-storage.json` and `storage/001-initial.json`).
 
 The package requires `app-screens`, `screen-records`, `screen-startup` and
-`app-storage` v1, and optionally negotiates `screen-audio.v1` on hosts that
+`app-storage` v1, and optionally negotiates `screen-audio.v2` on hosts that
 advertise audio transcription. Its screen declaration orders two static inline scripts:
 `runtime.js` holds the app-local React runtime and `client.js` mounts the
 Meeting minutes interface against it. No parent runtime or external network
 loader is used. Nothing in this bundle calls an external speech service
 directly, creates tracker issues, or sends outward messages; live recording and
-audio file uploads run strictly through the host-owned `screen-audio.v1` modal
-when offered by the workspace.
+audio file uploads run strictly through the host-owned `screen-audio.v2`
+headless session broker when offered by the workspace.
 
 ## App-owned storage schema (`app-storage/v1`)
 

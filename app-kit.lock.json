@@ -3,15 +3,15 @@
   "source": {
     "kind": "commit",
     "repo": "favcrm/cadence",
-    "source_sha": "278834fe9590e68b59fd84331a9f3e4eff6fefb2"
+    "source_sha": "1918854fb264104789b80720369a215ac3f8c580"
   },
-  "version": "0.4.0",
+  "version": "0.5.0",
   "files": {
-    "README.md": "8cdd2053ea1b3ca1f80b47722401c61c19927c0bd84b01e87c7984466cddad31",
-    "package.json": "db998ab5e6b0dc76d707952a41c82d1642658bec4d50c0d60f387509ac5103a4",
-    "src/index.mjs": "805028dd202306308dd7e710271a3aa1c2ed58b7374054123f30e220ce57876a",
-    "src/receiver.mjs": "aeb82123fce5bcea5ee002b6776461f1bf8f092ee21e1a9b235e28d599d52581",
+    "README.md": "1d5eb94c1ce90fb4649d75fd8f8517eb43237635accff33e7c9a95b8cc31a745",
+    "package.json": "5f5d59b94a036f5f72545b1f039611b69edcff9d4e90db6a4f4637dc230f5897",
+    "src/index.mjs": "c860df1f8fccd30e68784dfd41441ba70f409297e8c7eeec133a9bb028e30c71",
+    "src/receiver.mjs": "af8fd20c61c41bbf37729e502e0373d7a1eeef866c1b49937059eb021e3e42fe",
     "src/refusal.mjs": "353d1e5c1c8c1304661f0ba4235b3b56fb3fad9b8b101101e8855bd0bc2233eb",
-    "types/index.d.ts": "4504bd6d79bcecad0ba67a7200a0f6a1058b887b3823eac8764215675ea63e72"
+    "types/index.d.ts": "fd5976a8efc41b2363574d25ccdfb08af2bfaa6924089173794b588c7409a426"
   }
 }

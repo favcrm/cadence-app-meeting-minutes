@@ -16,18 +16,18 @@
     {
       "name": "client.js",
       "media_type": "text/javascript",
-      "size": 116368,
-      "sha256": "sha256:97e43caaf83f3e59c2112c716604a74fc5deb7dd90a19c580f08d66871a894dd"
+      "size": 134999,
+      "sha256": "sha256:71120198bdbd41a2f52a5a1b1712f694c0daa1073ca46b7fa6560b13759360d7"
     },
     {
       "name": "minutes.css",
       "media_type": "text/css",
-      "size": 33213,
-      "sha256": "sha256:f170b96af667daa62954b54abade9b67156880a40e9ca82920689bd1d7796876"
+      "size": 39178,
+      "sha256": "sha256:bd3c241b37ac736cbdf38574f3932773d605fea49773e8ead78c4ff28ffdf3e7"
     }
   ],
   "provenance": {
-    "source_digest": "sha256:8ab6bbcf19274ad8ea7e6628607f4109d107a64ef95a9b87b0d9ab0d4f7e8311",
+    "source_digest": "sha256:3365c5d0f2deeca1c5c4f5d778185871f49398d268adf29439a9bedce02774d7",
     "sdk_digest": "sha256:fd65c974511e63b3996e9fa7e438fb4e39df5f508d11636116ef150fcc123e35",
     "toolchain_digest": "sha256:e21cfc8222db408abe6ba5a482520639d9cf4b96481c19aff4b4246af8a65e42"
   },
@@ -50,6 +50,10 @@
       {
         "id": "all",
         "label": "All meetings"
+      },
+      {
+        "id": "new",
+        "label": "New meeting"
       },
       {
         "id": "followups",

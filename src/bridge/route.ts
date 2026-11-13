@@ -15,7 +15,7 @@ export function patchRoute(patch: CallArgs["screen.route.patch"]): Promise<unkno
 export function navigateLogical(href: string, options?: { replace?: boolean }): void {
   const s = getScope();
   if (!s) return;
-  const match = /^minutes:(all|followups)(?:\/(new|[a-z0-9_-]{1,64}))?$/.exec(href);
+  const match = /^minutes:(all|new|followups)(?:\/(new|[a-z0-9_-]{1,64}))?$/.exec(href);
   if (!match) throw new ApiError("Meeting minutes navigation destination is not admitted", 400);
   void patchRoute({
     section: match[1] as Route["section"],

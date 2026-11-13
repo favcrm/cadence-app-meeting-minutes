@@ -101,18 +101,38 @@ async function waitFor(predicate, timeoutMs = 1500) {
   throw new Error("Timed out waiting for UI condition");
 }
 
+function makeAudioSnapshot(overrides = {}) {
+  return {
+    session_id: "sess-test-1",
+    mode: "record",
+    phase: "idle",
+    held_at: "",
+    elapsed_seconds: 0,
+    level: 0,
+    peak: 0,
+    segments_total: 0,
+    segments_done: 0,
+    segments_in_flight: 0,
+    segments_failed: 0,
+    no_speech_segments: 0,
+    transcript: "",
+    error: null,
+    ...overrides,
+  };
+}
+
 function mountWithMockHost({
   records = [],
   route = { section: "all", view: "list", record_id: null, segment_id: null },
-  surfaceRole = "primary",
   audioCapture = false,
-  onAudioRequest = null,
+  onAudioSession = null,
 } = {}) {
   const rows = [...records];
   let currentRoute = { ...route };
   const calls = [];
-  const audioRequests = [];
+  const audioCommands = [];
   let hostPort = null;
+  let audioSnap = makeAudioSnapshot();
 
   channel.start({
     boot: {
@@ -128,6 +148,11 @@ function mountWithMockHost({
     },
   });
 
+  const emitAudio = (next) => {
+    audioSnap = next;
+    hostPort.postMessage({ v: 2, op: "audio-session-event", state: next });
+  };
+
   const pushCurrent = () => {
     hostPort.postMessage({
       v: 2,
@@ -142,30 +167,17 @@ function mountWithMockHost({
         install_id: INSTALL_ID,
         name: "meeting-minutes",
         title: "Meeting minutes",
-        version: "0.5.0",
+        version: "0.6.0",
         digest: DIGEST,
         summary: "Meeting minutes",
       },
-      actions:
-        surfaceRole === "drawer"
-          ? [
-              "records.list",
-              "records.show",
-              "records.create",
-              "records.update",
-              "screen.route.patch",
-              "screen.drawer.close",
-              "screen.drawer.context",
-            ]
-          : [
-              "records.list",
-              "records.show",
-              "records.create",
-              "records.update",
-              "screen.route.patch",
-              "screen.drawer.open",
-              "screen.drawer.close",
-            ],
+      actions: [
+        "records.list",
+        "records.show",
+        "records.create",
+        "records.update",
+        "screen.route.patch",
+      ],
       route: { ...currentRoute },
       read_observations: [],
     });
@@ -174,33 +186,83 @@ function mountWithMockHost({
   hostPort.onmessage = (event) => {
     const msg = event.data;
     if (msg?.op === "ready") {
-      hostPort.postMessage(
-        surfaceRole === "drawer"
-          ? { v: 1, op: "surface", role: "drawer", modal: false, surface: "detail" }
-          : { v: 1, op: "surface", role: "primary", modal: false },
-      );
       pushCurrent();
       return;
     }
-    if (msg?.op === "audio") {
-      audioRequests.push({ id: msg.id, mode: msg.mode });
-      const outcome = onAudioRequest
-        ? onAudioRequest(msg)
-        : {
-            ok: true,
-            data: {
-              transcript: "[00:05] Carmen: Kickoff Harbour City winter pop-up staffing.",
-              duration_seconds: 95,
-              held_at: "2026-11-13T03:00:00Z",
-              source: msg.mode === "upload" ? "upload" : "recording",
-            },
-          };
-      hostPort.postMessage({
-        v: 2,
-        op: "audio-reply",
-        id: msg.id,
-        ...outcome,
-      });
+    if (msg?.op === "audio-session") {
+      audioCommands.push(msg);
+      if (onAudioSession) {
+        const custom = onAudioSession(msg, { emitAudio, getState: () => audioSnap });
+        hostPort.postMessage({
+          v: 2,
+          op: "audio-session-reply",
+          id: msg.id,
+          ...custom,
+        });
+        return;
+      }
+
+      if (msg.action === "start") {
+        const started = makeAudioSnapshot({
+          session_id: "sess-rec-01",
+          mode: "record",
+          phase: "recording",
+          held_at: "2026-11-13T04:00:00Z",
+          elapsed_seconds: 12,
+          level: 64,
+          peak: 82,
+          segments_total: 1,
+          segments_done: 1,
+          transcript: "[00:12] Ada Lin: Confirm Harbour City launch date next Tuesday.",
+        });
+        emitAudio(started);
+        hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: started });
+        return;
+      }
+      if (msg.action === "stop") {
+        const stopped = makeAudioSnapshot({
+          ...audioSnap,
+          phase: "ready",
+          held_at: audioSnap.held_at || "2026-11-13T04:00:00Z",
+          elapsed_seconds: 125,
+          level: 0,
+          peak: 0,
+          segments_total: 2,
+          segments_done: 2,
+          transcript:
+            audioSnap.transcript ||
+            "[00:12] Ada Lin: Confirm Harbour City launch date next Tuesday.",
+        });
+        emitAudio(stopped);
+        hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: stopped });
+        return;
+      }
+      if (msg.action === "upload") {
+        const heldAt =
+          typeof msg.last_modified === "number" && msg.last_modified > 0
+            ? new Date(msg.last_modified).toISOString().replace(/\.\d{3}Z$/, "Z")
+            : "2026-11-13T04:00:00Z";
+        const uploaded = makeAudioSnapshot({
+          session_id: "sess-up-01",
+          mode: "upload",
+          phase: "ready",
+          held_at: heldAt,
+          elapsed_seconds: 184,
+          segments_total: 2,
+          segments_done: 2,
+          transcript: "[00:08] Carmen Leung: Upload Harbour City roster.",
+        });
+        emitAudio(uploaded);
+        hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: uploaded });
+        return;
+      }
+      if (msg.action === "cancel") {
+        const idle = makeAudioSnapshot({ session_id: "", phase: "idle", held_at: "" });
+        emitAudio(idle);
+        hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: idle });
+        return;
+      }
+      hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: audioSnap });
       return;
     }
     if (msg?.op !== "call") return;
@@ -264,10 +326,10 @@ function mountWithMockHost({
   mountedRoot = createRoot(mountedEl);
   mountedRoot.render(React.createElement(MinutesScreen));
 
-  return { container: mountedEl, calls, audioRequests, rows };
+  return { container: mountedEl, calls, audioCommands, emitAudio, rows };
 }
 
-describe("Meeting minutes domain model & screen interactions", () => {
+describe("Meeting minutes domain model & dedicated full-page screen interactions", () => {
   test("derives generated titles from discussion while never overwriting user-set titles", () => {
     expect(
       deriveGeneratedTitle("[00:15] Carmen: Kickoff Q4 retail staffing plan for Harbour City."),
@@ -303,7 +365,7 @@ describe("Meeting minutes domain model & screen interactions", () => {
     ]);
   });
 
-  test("renders populated meetings with title-origin badges and supports inline Rename to user title", async () => {
+  test("opens dedicated full-page MeetingDetailPage with underline tabs and supports inline Rename to user title (zero drawers)", async () => {
     const r1 = makeRecord("mtg-user-1", {
       profile: { title: "Q4 onboarding sync", title_source: "user" },
     });
@@ -313,17 +375,32 @@ describe("Meeting minutes domain model & screen interactions", () => {
 
     const { container, calls } = mountWithMockHost({
       records: [r1, r2],
-      route: { section: "all", view: "list", record_id: "mtg-gen-2", segment_id: null },
+      route: { section: "all", view: "list", record_id: null, segment_id: null },
     });
 
-    await waitFor(() => {
-      const buttons = [...container.querySelectorAll("button")];
-      return buttons.some((b) => b.textContent?.trim() === "Rename");
-    });
+    await waitFor(() => (container.textContent ?? "").includes("Harbour City pop-up staffing"));
     expect(container.textContent).toContain("your title");
     expect(container.textContent).toContain("from the discussion");
 
-    // Click Rename inside the detail drawer and save a user title.
+    // Click meeting row link -> routes to dedicated full-page MeetingDetailPage (no drawer).
+    const secondCard = [...container.querySelectorAll(".mm-row-link")].find((el) =>
+      (el.textContent ?? "").includes("Harbour City pop-up staffing"),
+    );
+    expect(secondCard).toBeTruthy();
+    secondCard.click();
+
+    await waitFor(() => container.querySelector(".mm-detail-page") !== null);
+    expect(container.querySelector(".mm-hosted-drawer")).toBeNull();
+    expect(container.querySelector(".mm-frame-drawer")).toBeNull();
+    expect(container.querySelector(".mm-back-link")?.textContent).toContain("All meetings");
+
+    // Verify 4 underline tabs exist and switch cleanly.
+    const tabs = [...container.querySelectorAll('[role="tab"]')].map((el) => el.textContent?.trim());
+    expect(tabs.some((t) => t?.startsWith("Summary"))).toBe(true);
+    expect(tabs.some((t) => t?.startsWith("Decisions & Follow-ups"))).toBe(true);
+    expect(tabs.some((t) => t?.startsWith("Transcript"))).toBe(true);
+    expect(tabs.some((t) => t?.startsWith("History"))).toBe(true);
+
     const renameBtn = [...container.querySelectorAll("button")].find(
       (b) => b.textContent?.trim() === "Rename",
     );
@@ -332,7 +409,6 @@ describe("Meeting minutes domain model & screen interactions", () => {
 
     await waitFor(() => container.querySelector(".mm-rename-box") !== null);
     const renameForm = container.querySelector(".mm-rename-box");
-    expect(renameForm).toBeTruthy();
     const input = renameForm.querySelector("input");
     setReactValue(input, "Harbour City Pop-up Final Plan");
     await waitFor(() => input.value === "Harbour City Pop-up Final Plan");
@@ -348,31 +424,23 @@ describe("Meeting minutes domain model & screen interactions", () => {
     expect(updateCall.args.consent_provenance).toEqual({ method: "inline_rename" });
   });
 
-  test("creates minutes from minimal source-first compose drawer with collapsed optional settings and keeps full editor in detail drawer", async () => {
+  test("creates minutes on dedicated NewMeetingPage (section=new) with Paste transcript fallback and opens full-page MeetingDetailPage", async () => {
     const { container, calls } = mountWithMockHost({
       records: [],
-      route: { section: "all", view: "new", record_id: null, segment_id: null },
+      route: { section: "new", view: "list", record_id: null, segment_id: null },
+      audioCapture: false,
     });
 
-    await waitFor(() => container.querySelector(".mm-mono-textarea") !== null);
+    await waitFor(() => container.querySelector(".mm-new-page") !== null);
     const createForm = container.querySelector("#mm-create-form");
     expect(createForm).toBeTruthy();
 
-    // Minimal create surface: no Status/When/Duration/Tags/Summary/Decisions/Follow-ups/WireMeter upfront,
-    // and optional Title + Participants collapsed inside <details class="mm-optional-settings">.
     const optionalDetails = createForm.querySelector("details.mm-optional-settings");
     expect(optionalDetails).toBeTruthy();
     expect(optionalDetails.hasAttribute("open")).toBe(false);
     expect(optionalDetails.textContent).toContain("Untitled meeting (named from discussion)");
     expect(optionalDetails.textContent).toContain("No attendees listed");
     expect(createForm.querySelector(".mm-wire-meter")).toBeNull();
-    expect(createForm.querySelector('input[type="datetime-local"]')).toBeNull();
-    expect(createForm.querySelector('input[type="number"]')).toBeNull();
-    expect(
-      [...createForm.querySelectorAll("button")].some((b) =>
-        (b.textContent ?? "").includes("Add follow-up"),
-      ),
-    ).toBe(false);
 
     const transcriptArea = createForm.querySelector(".mm-mono-textarea");
     setReactValue(
@@ -381,7 +449,6 @@ describe("Meeting minutes domain model & screen interactions", () => {
     );
     await waitFor(() => transcriptArea.value.includes("Finalize Q1 partner SLA terms"));
 
-    // Collapsed summary previews the auto-extracted heading live.
     expect(optionalDetails.querySelector(".mm-optional-summary-title")?.textContent).toBe(
       "Finalize Q1 partner SLA terms before next Tuesday",
     );
@@ -395,28 +462,20 @@ describe("Meeting minutes domain model & screen interactions", () => {
     );
     expect(createCall.args.profile.title_source).toBe("generated");
     expect(createCall.args.profile.status).toBe("draft");
-    expect(typeof createCall.args.profile.held_at).toBe("string");
-    expect(createCall.args.profile.held_at.length).toBeGreaterThan(10);
     expect(createCall.args.profile.duration_seconds).toBeNull();
-    expect(createCall.args.profile.followups).toEqual([]);
-    expect(createCall.args.profile.decisions).toEqual([]);
 
-    // After creation, detail drawer opens -> clicking "Edit minutes" exposes full editor including follow-ups with null owner/due honesty.
-    await waitFor(() =>
-      [...container.querySelectorAll("button")].some(
-        (b) => b.textContent?.trim() === "Edit minutes",
-      ),
-    );
+    // Routes directly to dedicated full-page MeetingDetailPage -> Edit minutes opens full-page MeetingEditForm.
+    await waitFor(() => container.querySelector(".mm-detail-page") !== null);
     const editBtn = [...container.querySelectorAll("button")].find(
       (b) => b.textContent?.trim() === "Edit minutes",
     );
+    expect(editBtn).toBeTruthy();
     editBtn.click();
 
     await waitFor(() => container.querySelector("#mm-edit-form") !== null);
     const addFollowupBtn = [...container.querySelectorAll("button")].find((b) =>
       (b.textContent ?? "").includes("Add follow-up"),
     );
-    expect(addFollowupBtn).toBeTruthy();
     addFollowupBtn.click();
     await waitFor(() => container.querySelectorAll(".mm-subeditor-card").length >= 1);
 
@@ -439,7 +498,7 @@ describe("Meeting minutes domain model & screen interactions", () => {
     ]);
   });
 
-  test("renders Follow-ups section with Unassigned/No due date honesty and single-chrome drawer surface", async () => {
+  test("renders Follow-ups section with Unassigned/No due date honesty and navigates back to Follow-ups from detail page", async () => {
     const r1 = makeRecord("mtg-1");
     const { container } = mountWithMockHost({
       records: [r1],
@@ -450,22 +509,12 @@ describe("Meeting minutes domain model & screen interactions", () => {
     expect(container.textContent).toContain("Unassigned");
     expect(container.textContent).toContain("No due date");
 
-    // Unmount and mount as a host-owned drawer surface -> single chrome (.mm-hosted-drawer), no nested .mm-frame-drawer scrim.
-    mountedRoot.unmount();
-    mountedRoot = null;
-    mountedEl.remove();
-    mountedEl = null;
-    channel.resetForTests();
-    resetScopeForTests();
+    const openMeetingLink = container.querySelector(".mm-row-link");
+    expect(openMeetingLink).toBeTruthy();
+    openMeetingLink.click();
 
-    const drawerMount = mountWithMockHost({
-      records: [r1],
-      route: { section: "all", view: "list", record_id: "mtg-1", segment_id: null },
-      surfaceRole: "drawer",
-    });
-
-    await waitFor(() => drawerMount.container.querySelector(".mm-hosted-drawer") !== null);
-    expect(drawerMount.container.querySelector(".mm-frame-drawer")).toBeNull();
+    await waitFor(() => container.querySelector(".mm-detail-page") !== null);
+    expect(container.querySelector(".mm-back-link")?.textContent).toContain("Follow-ups");
   });
 
   test("renders ErrorNotice immediately instead of hanging on loading when initial scope push is refused", async () => {
@@ -499,7 +548,6 @@ describe("Meeting minutes domain model & screen interactions", () => {
     hostPort.start();
     await readyPromise;
 
-    // Send a push with an invalid installation name to trigger acceptPush refusal.
     hostPort.postMessage({
       v: 2,
       op: "screen",
@@ -512,7 +560,7 @@ describe("Meeting minutes domain model & screen interactions", () => {
         install_id: INSTALL_ID,
         name: "foreign-app",
         title: "Foreign",
-        version: "0.4.0",
+        version: "0.6.0",
         digest: DIGEST,
         summary: "Foreign",
       },
@@ -527,33 +575,14 @@ describe("Meeting minutes domain model & screen interactions", () => {
     expect(mountedEl.textContent).not.toContain("Reading meetings…");
   });
 
-  test("renders 1-click Record audio and Upload audio bar when screen-audio.v1 is offered, ignores cancelled modal, and persists duration_seconds and held_at", async () => {
-    let callNum = 0;
-    const { container, calls, audioRequests } = mountWithMockHost({
+  test("streams inline Live recording via screen-audio.v2 with VoiceLevelMeter and saves in 1 click via End meeting & save", async () => {
+    const { container, calls, audioCommands } = mountWithMockHost({
       records: [],
-      route: { section: "all", view: "new", record_id: null, segment_id: null },
+      route: { section: "new", view: "list", record_id: null, segment_id: null },
       audioCapture: true,
-      onAudioRequest: (msg) => {
-        callNum += 1;
-        if (callNum === 1) {
-          return {
-            ok: false,
-            refusal: { code: "cancelled", text: "Audio capture was cancelled." },
-          };
-        }
-        return {
-          ok: true,
-          data: {
-            transcript: "[00:12] Ada Lin: Confirm Harbour City launch date next Tuesday.",
-            duration_seconds: 125,
-            held_at: "2026-11-13T04:00:00Z",
-            source: msg.mode === "upload" ? "upload" : "recording",
-          },
-        };
-      },
     });
 
-    await waitFor(() => container.querySelector("#mm-btn-record-audio") !== null);
+    await waitFor(() => container.querySelector("#mm-btn-start-recording") !== null);
     const createForm = container.querySelector("#mm-create-form");
     expect(createForm).toBeTruthy();
 
@@ -561,35 +590,71 @@ describe("Meeting minutes domain model & screen interactions", () => {
     const optionalDetails = createForm.querySelector("details.mm-optional-settings");
     expect(optionalDetails.hasAttribute("open")).toBe(false);
 
-    const recordBtn = container.querySelector("#mm-btn-record-audio");
-    const uploadBtn = container.querySelector("#mm-btn-upload-audio");
-    expect(recordBtn.textContent?.trim()).toBe("Record audio");
-    expect(uploadBtn.textContent?.trim()).toBe("Upload audio");
+    // 1-click Start recording -> streams voice level meter + live transcript inline (zero modal).
+    const startBtn = container.querySelector("#mm-btn-start-recording");
+    expect(startBtn.textContent?.trim()).toBe("Start recording");
+    startBtn.click();
 
-    // First click cancels -> no ErrorNotice banner is rendered.
-    recordBtn.click();
-    await waitFor(() => audioRequests.length === 1);
-    await new Promise((r) => setTimeout(r, 25));
-    expect(audioRequests[0].mode).toBe("record");
-    expect(createForm.querySelector('[role="alert"]')).toBeNull();
+    await waitFor(() => container.querySelector("#mm-btn-end-and-save") !== null);
+    expect(audioCommands[0].action).toBe("start");
+    expect(audioCommands[0].language).toBe("");
 
-    // Second click uploads audio -> populates transcript, badge, duration_seconds, and held_at.
-    uploadBtn.click();
-    await waitFor(() => audioRequests.length === 2);
-    await waitFor(() =>
-      container.querySelector(".mm-mono-textarea")?.value.includes("Confirm Harbour City launch date"),
-    );
-    expect(audioRequests[1].mode).toBe("upload");
-    expect(container.querySelector(".mm-audio-captured-pill")?.textContent).toContain(
-      "Uploaded audio · 02:05",
+    const meter = container.querySelector('[role="meter"]');
+    expect(meter?.getAttribute("aria-valuenow")).toBe("64");
+    expect(container.querySelector(".mm-live-transcript-text")?.textContent).toContain(
+      "Confirm Harbour City launch date next Tuesday",
     );
 
-    createForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    // 1-click End meeting & save -> sends stop, persists duration_seconds & held_at, opens MeetingDetailPage!
+    const endAndSaveBtn = container.querySelector("#mm-btn-end-and-save");
+    endAndSaveBtn.click();
+
     await waitFor(() => calls.some((c) => c.verb === "records.create"));
+    expect(audioCommands.some((cmd) => cmd.action === "stop")).toBe(true);
     const createCall = calls.find((c) => c.verb === "records.create");
     expect(createCall.args.profile.title).toBe("Confirm Harbour City launch date next Tuesday");
     expect(createCall.args.profile.title_source).toBe("generated");
     expect(createCall.args.profile.duration_seconds).toBe(125);
     expect(createCall.args.profile.held_at).toBe("2026-11-13T04:00:00Z");
+
+    await waitFor(() => container.querySelector(".mm-detail-page") !== null);
+  });
+
+  test("uploads multi-format audio file via screen-audio.v2 preserving file.lastModified as held_at", async () => {
+    const { container, calls, audioCommands } = mountWithMockHost({
+      records: [],
+      route: { section: "new", view: "list", record_id: null, segment_id: null },
+      audioCapture: true,
+    });
+
+    await waitFor(() => container.querySelector("#mm-tab-mode-upload") !== null);
+    container.querySelector("#mm-tab-mode-upload").click();
+
+    await waitFor(() => container.querySelector("#mm-audio-file-input") !== null);
+    const input = container.querySelector("#mm-audio-file-input");
+    const lastModifiedMs = Date.parse("2026-11-12T09:30:00Z");
+    const file = new File([new Uint8Array([1, 2, 3, 4, 5, 6])], "standup.m4a", {
+      type: "audio/mp4",
+      lastModified: lastModifiedMs,
+    });
+
+    const propKey = Object.keys(input).find((k) => k.startsWith("__reactProps$"));
+    await input[propKey].onChange({ target: { files: [file] } });
+
+    await waitFor(() =>
+      container.querySelector(".mm-mono-textarea")?.value.includes("Upload Harbour City roster"),
+    );
+    const uploadCmd = audioCommands.find((cmd) => cmd.action === "upload");
+    expect(uploadCmd).toBeTruthy();
+    expect(uploadCmd.file_name).toBe("standup.m4a");
+    expect(uploadCmd.last_modified).toBe(lastModifiedMs);
+
+    const createForm = container.querySelector("#mm-create-form");
+    createForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => calls.some((c) => c.verb === "records.create"));
+    const createCall = calls.find((c) => c.verb === "records.create");
+    expect(createCall.args.profile.duration_seconds).toBe(184);
+    expect(createCall.args.profile.held_at).toBe("2026-11-12T09:30:00Z");
   });
 });

@@ -11,23 +11,21 @@ import {
   type DataTableColumn,
 } from "@cadence/screen-ui";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { admitted, channel, useSurface } from "../../bridge/channel";
+import { admitted, type MinutesSection } from "../../bridge/channel";
 import { FrameNavigationAdapter, patchRoute } from "../../bridge/route";
 import { useScope, useScopeError } from "../../bridge/scope";
 import { onWrite, serviceCall } from "../../bridge/services";
 import FollowupsSection from "./FollowupsSection";
 import { MinutesLocaleProvider, useMinutesText } from "./i18n";
 import ListPager from "./ListPager";
-import MeetingComposeDrawer from "./MeetingComposeDrawer";
-import MeetingDetailDrawer, {
-  MeetingStatusChip,
-  TitleOriginBadge,
-} from "./MeetingDetailDrawer";
+import { MeetingStatusChip, TitleOriginBadge } from "./MeetingBadges";
+import MeetingDetailPage from "./MeetingDetailPage";
 import {
   formatDuration,
   formatHeldAt,
   parseMeetingListResponse,
 } from "./model";
+import NewMeetingPage from "./NewMeetingPage";
 import type { MeetingRecord, MeetingStatus } from "./types";
 
 const PAGE_LIMIT = 25;
@@ -35,7 +33,6 @@ const PAGE_LIMIT = 25;
 function MinutesScreenInner() {
   const snapshot = useScope();
   const scopeErr = useScopeError();
-  const surface = useSurface();
   const { locale, t } = useMinutesText();
 
   const [records, setRecords] = useState<MeetingRecord[]>([]);
@@ -55,7 +52,6 @@ function MinutesScreenInner() {
   const canUpdate = snapshot ? admitted("records.update", snapshot.actions) : false;
   const canPatchRoute = snapshot ? admitted("screen.route.patch", snapshot.actions) : false;
 
-  // Local fallback selection if host withholds screen.route.patch on a read-only viewer mount
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [localCreating, setLocalCreating] = useState<boolean>(false);
 
@@ -86,13 +82,9 @@ function MinutesScreenInner() {
 
   useEffect(() => {
     if (!snapshot) return;
-    // Hydrate immediately from host-pushed read_observations when matching default list args
     if (currentCursor === null && committedQuery === "") {
       const obs = snapshot.observations.find(
-        (o) =>
-          o.operation === "records.list" &&
-          !o.args.query &&
-          !o.args.cursor,
+        (o) => o.operation === "records.list" && !o.args.query && !o.args.cursor,
       );
       if (obs) {
         try {
@@ -126,61 +118,30 @@ function MinutesScreenInner() {
 
   const route = snapshot.route;
   const activeSection = route.section;
-  const activeRecordId = route.record_id ?? localSelectedId;
-  const isComposeOpen =
-    route.view === "new" ||
-    localCreating ||
-    (surface.role === "drawer" && surface.surface === "new");
+  const activeRecordId = activeSection === "new" ? null : (route.record_id ?? localSelectedId);
+  const isNewMeetingRoute =
+    !activeRecordId && (activeSection === "new" || route.view === "new" || localCreating);
 
-  // If mounted directly as a drawer child surface (`screen-surfaces.v1`), render only the drawer content
-  if (surface.role === "drawer") {
-    const closeHostDrawer = () => {
-      void channel.closeDrawer().catch(() => {
-        if (canPatchRoute) {
-          void patchRoute({ view: "list", record_id: null }).catch(() => undefined);
-        }
-      });
-    };
-    if (isComposeOpen && canCreate) {
-      return (
-        <MeetingComposeDrawer
-          scope={snapshot.scope}
-          onClose={closeHostDrawer}
-          onCreated={() => closeHostDrawer()}
-        />
-      );
-    }
-    if (activeRecordId) {
-      return (
-        <MeetingDetailDrawer
-          scope={snapshot.scope}
-          recordId={activeRecordId}
-          initialRecord={records.find((r) => r.id === activeRecordId) ?? null}
-          canUpdate={canUpdate}
-          onClose={closeHostDrawer}
-          onRecordUpdated={(updated) => {
-            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-          }}
-        />
-      );
-    }
-  }
-
-  const navigateSection = (section: "all" | "followups") => {
+  const navigateSection = (section: MinutesSection) => {
     setLocalSelectedId(null);
-    setLocalCreating(false);
+    setLocalCreating(section === "new");
     if (canPatchRoute) {
-      void patchRoute({ section, view: "list", record_id: null, segment_id: null }).catch(
-        () => undefined,
-      );
+      void patchRoute({
+        section,
+        view: "list",
+        record_id: null,
+        segment_id: null,
+      }).catch(() => undefined);
     }
   };
 
-  const openMeeting = (meetingId: string) => {
+  const openMeeting = (meetingId: string, sectionOverride?: "all" | "followups") => {
     setLocalCreating(false);
+    const targetSection =
+      sectionOverride ?? (activeSection === "followups" ? "followups" : "all");
     if (canPatchRoute) {
       void patchRoute({
-        section: activeSection,
+        section: targetSection,
         view: "list",
         record_id: meetingId,
         segment_id: null,
@@ -197,8 +158,8 @@ function MinutesScreenInner() {
     setLocalSelectedId(null);
     if (canPatchRoute) {
       void patchRoute({
-        section: "all",
-        view: "new",
+        section: "new",
+        view: "list",
         record_id: null,
         segment_id: null,
       }).catch(() => {
@@ -209,18 +170,59 @@ function MinutesScreenInner() {
     }
   };
 
-  const closeOverlays = () => {
-    setLocalSelectedId(null);
-    setLocalCreating(false);
-    if (canPatchRoute && (route.view === "new" || route.record_id !== null)) {
-      void patchRoute({
-        section: activeSection,
-        view: "list",
-        record_id: null,
-        segment_id: null,
-      }).catch(() => undefined);
-    }
-  };
+  const returnSection: "all" | "followups" =
+    activeSection === "followups" ? "followups" : "all";
+
+  if (activeRecordId) {
+    return (
+      <main className="app-outlet mm-outlet" data-locale={locale}>
+        <MeetingDetailPage
+          scope={snapshot.scope}
+          recordId={activeRecordId}
+          initialRecord={records.find((r) => r.id === activeRecordId) ?? null}
+          returnSection={returnSection}
+          canUpdate={canUpdate}
+          onBack={() => navigateSection(returnSection)}
+          onRecordUpdated={(updated) => {
+            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+          }}
+        />
+      </main>
+    );
+  }
+
+  if (isNewMeetingRoute) {
+    return (
+      <main className="app-outlet mm-outlet" data-locale={locale}>
+        {canCreate ? (
+          <NewMeetingPage
+            scope={snapshot.scope}
+            onBack={() => navigateSection("all")}
+            onCreated={(created) => {
+              setRecords((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
+              setTotal((prev) => prev + 1);
+              setLocalCreating(false);
+              openMeeting(created.id, "all");
+            }}
+          />
+        ) : (
+          <section className="mm-page" aria-label={t("newPageTitle")}>
+            <div className="mm-page-topbar">
+              <button
+                type="button"
+                className="mm-back-link"
+                onClick={() => navigateSection("all")}
+              >
+                <span aria-hidden="true">←</span>
+                <span>{t("backToAllMeetings")}</span>
+              </button>
+            </div>
+            <Notice state="read-only">{t("readOnlyNotice")}</Notice>
+          </section>
+        )}
+      </main>
+    );
+  }
 
   const visibleRecords =
     statusFilter === "all"
@@ -261,7 +263,7 @@ function MinutesScreenInner() {
           <button
             type="button"
             className="lnk mm-row-link"
-            onClick={() => openMeeting(row.id)}
+            onClick={() => openMeeting(row.id, "all")}
           >
             {row.profile.title}
           </button>
@@ -356,6 +358,15 @@ function MinutesScreenInner() {
         >
           {t("sectionAll")}
         </button>
+        {canCreate ? (
+          <button
+            type="button"
+            className="app-outlet-tab"
+            onClick={openCompose}
+          >
+            {t("sectionNew")}
+          </button>
+        ) : null}
         <button
           type="button"
           className="app-outlet-tab mm-tab-with-count"
@@ -385,7 +396,7 @@ function MinutesScreenInner() {
             scope={snapshot.scope}
             meetings={records}
             canUpdate={canUpdate}
-            onSelectMeeting={openMeeting}
+            onSelectMeeting={(id) => openMeeting(id, "followups")}
             onMeetingUpdated={(updated) => {
               setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
             }}
@@ -478,7 +489,6 @@ function MinutesScreenInner() {
                 tableClassName="mm-table mm-meetings-table"
                 rowProps={(row) => ({
                   "data-record-id": row.id,
-                  "data-selected": activeRecordId === row.id ? "true" : undefined,
                 })}
               />
               <ListPager
@@ -498,30 +508,6 @@ function MinutesScreenInner() {
           )}
         </section>
       )}
-
-      {isComposeOpen && canCreate ? (
-        <MeetingComposeDrawer
-          scope={snapshot.scope}
-          onClose={closeOverlays}
-          onCreated={(created) => {
-            setRecords((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
-            setTotal((prev) => prev + 1);
-            setLocalCreating(false);
-            openMeeting(created.id);
-          }}
-        />
-      ) : activeRecordId ? (
-        <MeetingDetailDrawer
-          scope={snapshot.scope}
-          recordId={activeRecordId}
-          initialRecord={records.find((r) => r.id === activeRecordId) ?? null}
-          canUpdate={canUpdate}
-          onClose={closeOverlays}
-          onRecordUpdated={(updated) => {
-            setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-          }}
-        />
-      ) : null}
     </main>
   );
 }

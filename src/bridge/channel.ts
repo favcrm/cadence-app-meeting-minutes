@@ -1,30 +1,22 @@
 import { ApiError } from "@cadence/screen-ui";
 import {
   createScreenBridge,
-  type ScreenAudioCapture,
-  type ScreenAudioCaptureOptions,
+  type ScreenAudioSessionCommand,
+  type ScreenAudioSessionSnapshot,
   type ScreenBridge,
   type ScreenBridgeRuntimeOverrides,
-  type ScreenSurfaceRole,
-  type ScreenSurfaceSnapshot,
 } from "@cadence/app-kit";
 import { useSyncExternalStore } from "react";
 import { CALL_FIELDS, OPERATIONS, SCREEN_SERVICE_ARGS_BYTES, type CallArgs } from "./services";
 import type { DisplayScope } from "./scope";
 
-export type MinutesSection = "all" | "followups";
+export type MinutesSection = "all" | "new" | "followups";
 export type MinutesView = "list" | "new";
 
 export type MinutesLeaveState = {
   publish: (unsaved: boolean) => void;
   release: () => void;
 };
-
-export interface SurfaceSnapshot {
-  role: ScreenSurfaceRole;
-  surface: string | undefined;
-  modal: boolean;
-}
 
 export type StartChannelOptions = ScreenBridgeRuntimeOverrides;
 
@@ -33,14 +25,14 @@ function createMinutesBridge(): ScreenBridge<MinutesSection, MinutesView, ApiErr
     tag: "minutes",
     appName: "meeting-minutes",
     records: true,
-    surfaces: true,
+    surfaces: false,
     locale: true,
-    audio: true,
+    audio: "v2",
     calls: CALL_FIELDS,
     argBytes: SCREEN_SERVICE_ARGS_BYTES,
     writeVerbs: ["records.create", "records.update"],
     route: {
-      sections: ["all", "followups"],
+      sections: ["all", "new", "followups"],
       defaultSection: "all",
       views: ["list", "new"],
     },
@@ -53,16 +45,18 @@ function createMinutesBridge(): ScreenBridge<MinutesSection, MinutesView, ApiErr
 
 export class Channel {
   private instance: ScreenBridge<MinutesSection, MinutesView, ApiError> | null = null;
-  private cachedRawSurface: ScreenSurfaceSnapshot | null = null;
-  private cachedSurface: SurfaceSnapshot = {
-    role: "primary",
-    surface: undefined,
-    modal: false,
-  };
+  private latestAudioSession: ScreenAudioSessionSnapshot | null = null;
+  private audioListeners = new Set<() => void>();
+  private unsubBridgeAudio: (() => void) | null = null;
 
   get bridge(): ScreenBridge<MinutesSection, MinutesView, ApiError> {
     if (!this.instance) {
-      this.instance = createMinutesBridge();
+      const bridge = createMinutesBridge();
+      this.instance = bridge;
+      this.unsubBridgeAudio = bridge.onAudioSession((snapshot) => {
+        this.latestAudioSession = snapshot;
+        for (const listener of this.audioListeners) listener();
+      });
     }
     return this.instance;
   }
@@ -77,43 +71,15 @@ export class Channel {
 
   subscribe = (listener: () => void): (() => void) => this.bridge.subscribe(listener);
 
-  subscribeSurface = (listener: () => void): (() => void) => this.bridge.subscribe(listener);
-
-  getSurface = (): SurfaceSnapshot => {
-    const raw = this.bridge.getState().surface;
-    if (raw !== this.cachedRawSurface) {
-      this.cachedRawSurface = raw;
-      this.cachedSurface = {
-        role: raw.role,
-        surface: raw.name,
-        modal: raw.modal,
-      };
-    }
-    return this.cachedSurface;
+  subscribeAudioSession = (listener: () => void): (() => void) => {
+    void this.bridge;
+    this.audioListeners.add(listener);
+    return () => {
+      this.audioListeners.delete(listener);
+    };
   };
 
-  surfaceRole(): ScreenSurfaceRole {
-    return this.getSurface().role;
-  }
-
-  surfaceName(): string | undefined {
-    return this.getSurface().surface;
-  }
-
-  openDrawer(
-    surface: string,
-    options?: { size?: "narrow" | "wide"; context?: unknown },
-  ): Promise<unknown> {
-    return this.bridge.openDrawer(surface, options);
-  }
-
-  closeDrawer(): Promise<unknown> {
-    return this.bridge.closeDrawer();
-  }
-
-  drawerContext<T = unknown>(): Promise<T | null> {
-    return this.bridge.drawerContext<T>();
-  }
+  getAudioSession = (): ScreenAudioSessionSnapshot | null => this.latestAudioSession;
 
   ownMinutesLeaveState(): MinutesLeaveState | null {
     return this.bridge.ownLeaveState();
@@ -121,11 +87,14 @@ export class Channel {
 
   canAudioCapture = (): boolean => this.bridge.canAudioCapture();
 
-  audioCapture(
+  async audioSession(
     scope: DisplayScope,
-    options?: ScreenAudioCaptureOptions,
-  ): Promise<ScreenAudioCapture> {
-    return this.bridge.audioCapture(scope, options);
+    command: ScreenAudioSessionCommand,
+  ): Promise<ScreenAudioSessionSnapshot> {
+    const snapshot = await this.bridge.audioSession(scope, command);
+    this.latestAudioSession = snapshot;
+    for (const listener of this.audioListeners) listener();
+    return snapshot;
   }
 
   call<T = unknown, K extends keyof CallArgs = keyof CallArgs>(
@@ -152,21 +121,24 @@ export class Channel {
   }
 
   resetForTests(): void {
+    this.unsubBridgeAudio?.();
+    this.unsubBridgeAudio = null;
     this.bridge.reset();
-    this.cachedRawSurface = null;
-    this.cachedSurface = { role: "primary", surface: undefined, modal: false };
+    this.instance = null;
+    this.latestAudioSession = null;
+    for (const listener of this.audioListeners) listener();
   }
 }
 
 export const createChannel = (): Channel => new Channel();
 export const channel = createChannel();
 
-export function useSurface(): SurfaceSnapshot {
-  return useSyncExternalStore(channel.subscribeSurface, channel.getSurface);
-}
-
 export function useCanAudioCapture(): boolean {
   return useSyncExternalStore(channel.subscribe, channel.canAudioCapture);
+}
+
+export function useAudioSession(): ScreenAudioSessionSnapshot | null {
+  return useSyncExternalStore(channel.subscribeAudioSession, channel.getAudioSession);
 }
 
 export function admitted(verb: string, actions: readonly string[]): boolean {

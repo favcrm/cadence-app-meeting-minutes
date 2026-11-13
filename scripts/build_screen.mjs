@@ -205,6 +205,7 @@ const decl = {
     default_section: "all",
     sections: [
       { id: "all", label: "All meetings" },
+      { id: "new", label: "New meeting" },
       { id: "followups", label: "Follow-ups" },
     ],
   },
