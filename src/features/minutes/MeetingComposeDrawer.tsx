@@ -49,6 +49,8 @@ export interface MeetingComposeFormProps {
   onPendingChange?: (pending: boolean) => void;
 }
 
+const WIRE_METER_WARN_BYTES = Math.floor(SCREEN_SERVICE_ARGS_BYTES * 0.85);
+
 export function MeetingComposeForm({
   formId,
   scope,
@@ -60,6 +62,7 @@ export function MeetingComposeForm({
   const isEdit = !!record;
   const userTitleLocked = record?.profile.title_source === "user";
 
+  const [createdAtIso] = useState<string>(() => new Date().toISOString());
   const [typedTitle, setTypedTitle] = useState<string>(() =>
     record ? (record.profile.title_source === "user" ? record.profile.title : "") : "",
   );
@@ -141,30 +144,38 @@ export function MeetingComposeForm({
       existingTitleSource: record?.profile.title_source,
     });
     const { participants, participantsText } = normalizeParticipants(participantsRaw);
-    const { tags } = normalizeTags(tagsRaw);
+    const { tags } = isEdit ? normalizeTags(tagsRaw) : { tags: [] as string[] };
     const parsedMins = Number(durationMinutes.trim());
     const durationSeconds =
-      durationMinutes.trim() && Number.isFinite(parsedMins) && parsedMins > 0
+      isEdit && durationMinutes.trim() && Number.isFinite(parsedMins) && parsedMins > 0
         ? Math.round(parsedMins * 60)
         : null;
-    const heldAt = heldAtInput.trim() ? heldAtInput.trim().slice(0, 40) : null;
-    const cleanDecisions: DecisionItem[] = decisions
-      .filter((d) => d.text.trim().length > 0)
-      .map((d) => ({
-        id: d.id,
-        text: d.text.trim().slice(0, 1000),
-        quote: d.quote.trim() ? d.quote.trim().slice(0, 1000) : null,
-        timestamp: d.timestamp.trim() ? d.timestamp.trim().slice(0, 32) : null,
-      }));
-    const cleanFollowups: FollowupItem[] = followups
-      .filter((f) => f.task.trim().length > 0)
-      .map((f) => ({
-        id: f.id,
-        task: f.task.trim().slice(0, 1000),
-        owner: f.owner.trim() ? f.owner.trim().slice(0, 120) : null,
-        due: f.due.trim() ? f.due.trim().slice(0, 40) : null,
-        status: f.status,
-      }));
+    const heldAt = isEdit
+      ? heldAtInput.trim()
+        ? heldAtInput.trim().slice(0, 40)
+        : null
+      : createdAtIso.slice(0, 40);
+    const cleanDecisions: DecisionItem[] = isEdit
+      ? decisions
+          .filter((d) => d.text.trim().length > 0)
+          .map((d) => ({
+            id: d.id,
+            text: d.text.trim().slice(0, 1000),
+            quote: d.quote.trim() ? d.quote.trim().slice(0, 1000) : null,
+            timestamp: d.timestamp.trim() ? d.timestamp.trim().slice(0, 32) : null,
+          }))
+      : [];
+    const cleanFollowups: FollowupItem[] = isEdit
+      ? followups
+          .filter((f) => f.task.trim().length > 0)
+          .map((f) => ({
+            id: f.id,
+            task: f.task.trim().slice(0, 1000),
+            owner: f.owner.trim() ? f.owner.trim().slice(0, 120) : null,
+            due: f.due.trim() ? f.due.trim().slice(0, 40) : null,
+            status: f.status,
+          }))
+      : [];
 
     const profile: MeetingProfile = {
       schema: 1,
@@ -172,11 +183,11 @@ export function MeetingComposeForm({
       title_source: titleSource,
       held_at: heldAt,
       duration_seconds: durationSeconds,
-      status,
+      status: isEdit ? status : "draft",
       participants,
       participants_text: participantsText,
       tags,
-      summary: summary.trim().slice(0, 8000),
+      summary: isEdit ? summary.trim().slice(0, 8000) : "",
       decisions: cleanDecisions,
       followups: cleanFollowups,
       transcript: transcript.slice(0, 96000),
@@ -201,10 +212,12 @@ export function MeetingComposeForm({
       bytes: measureArgsBytes(baseArgs),
     };
   }, [
+    createdAtIso,
     decisions,
     durationMinutes,
     followups,
     heldAtInput,
+    isEdit,
     participantsRaw,
     record,
     status,
@@ -215,6 +228,7 @@ export function MeetingComposeForm({
   ]);
 
   const overWireCap = candidateArgs.bytes > SCREEN_SERVICE_ARGS_BYTES;
+  const showWireMeter = candidateArgs.bytes >= WIRE_METER_WARN_BYTES;
 
   const statusOptions = useMemo(
     () => [
@@ -231,21 +245,14 @@ export function MeetingComposeForm({
     setSubmitError(null);
     setTagsError(null);
 
-    const { invalidTags } = normalizeTags(tagsRaw);
-    if (invalidTags.length > 0) {
-      setTagsError(t("fieldTagsError", { tags: invalidTags.join(", ") }));
-      return;
-    }
-
-    const hasContent = Boolean(
-      typedTitle.trim() ||
-        transcript.trim() ||
-        summary.trim() ||
-        candidateArgs.profile.decisions.length > 0 ||
-        candidateArgs.profile.followups.length > 0,
-    );
-    if (!hasContent && !isEdit) {
-      setSubmitError(t("formEmptyContentError"));
+    if (isEdit) {
+      const { invalidTags } = normalizeTags(tagsRaw);
+      if (invalidTags.length > 0) {
+        setTagsError(t("fieldTagsError", { tags: invalidTags.join(", ") }));
+        return;
+      }
+    } else if (!transcript.trim() && !typedTitle.trim()) {
+      setSubmitError(t("createEmptyError"));
       return;
     }
 
@@ -253,6 +260,7 @@ export function MeetingComposeForm({
       setSubmitError(
         t("wireBudgetExceeded", {
           used: candidateArgs.bytes,
+          max: SCREEN_SERVICE_ARGS_BYTES,
         }),
       );
       return;
@@ -285,6 +293,105 @@ export function MeetingComposeForm({
     }
   };
 
+  const wireErrorText = overWireCap
+    ? t("wireBudgetExceeded", {
+        used: candidateArgs.bytes,
+        max: SCREEN_SERVICE_ARGS_BYTES,
+      })
+    : undefined;
+
+  if (!isEdit) {
+    const createHeadingPreview =
+      typedTitle.trim() ||
+      (transcript.trim() ? candidateArgs.profile.title : t("optionalSettingsAutoTitle"));
+    const participantCount = candidateArgs.profile.participants.length;
+    const participantsSummary =
+      participantCount > 0
+        ? t("optionalSettingsParticipantsCount", { count: participantCount })
+        : t("optionalSettingsNoParticipants");
+
+    return (
+      <form
+        id={formId}
+        className="mm-compose-form"
+        onSubmit={(e) => void handleSubmit(e)}
+        noValidate
+      >
+        {submitError ? <ErrorNotice>{submitError}</ErrorNotice> : null}
+
+        <Field
+          label={t("fieldTranscriptLabel")}
+          hint={t("createTranscriptHint")}
+          error={wireErrorText}
+        >
+          {(control) => (
+            <textarea
+              {...control}
+              rows={10}
+              autoFocus
+              className="field mm-mono-textarea mm-create-textarea"
+              value={transcript}
+              placeholder={t("fieldTranscriptPlaceholder")}
+              onChange={(e) => setTranscript(e.target.value)}
+            />
+          )}
+        </Field>
+
+        {showWireMeter ? (
+          <div className="mm-wire-meter num" data-over={overWireCap ? "true" : undefined}>
+            {t("wireBudgetUsage", { used: candidateArgs.bytes, max: SCREEN_SERVICE_ARGS_BYTES })}
+          </div>
+        ) : null}
+
+        <details className="mm-optional-settings">
+          <summary className="mm-optional-summary">
+            <span className="mm-optional-chevron" aria-hidden="true">
+              ▸
+            </span>
+            <span className="mm-optional-summary-line">
+              <strong className="mm-optional-summary-title">{createHeadingPreview}</strong>
+              <span className="mm-optional-summary-meta">
+                {" · "}
+                {participantsSummary}
+                {" — "}
+                {t("optionalSettingsSuffix")}
+              </span>
+            </span>
+          </summary>
+
+          <div className="mm-optional-body">
+            <Field label={t("fieldTitleLabel")} hint={t("fieldTitleHintCreate")}>
+              {(control) => (
+                <input
+                  {...control}
+                  type="text"
+                  className="field"
+                  maxLength={200}
+                  value={typedTitle}
+                  placeholder={t("fieldTitlePlaceholder")}
+                  onChange={(e) => setTypedTitle(e.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label={t("fieldParticipantsLabel")} hint={t("fieldParticipantsHint")}>
+              {(control) => (
+                <input
+                  {...control}
+                  type="text"
+                  className="field"
+                  value={participantsRaw}
+                  placeholder={t("fieldParticipantsPlaceholder")}
+                  onChange={(e) => setParticipantsRaw(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+        </details>
+      </form>
+    );
+  }
+
   return (
     <form id={formId} className="mm-compose-form" onSubmit={(e) => void handleSubmit(e)} noValidate>
       {submitError ? <ErrorNotice>{submitError}</ErrorNotice> : null}
@@ -301,7 +408,7 @@ export function MeetingComposeForm({
             maxLength={200}
             value={typedTitle}
             placeholder={
-              isEdit && !userTitleLocked ? record.profile.title : t("fieldTitlePlaceholder")
+              !userTitleLocked ? record.profile.title : t("fieldTitlePlaceholder")
             }
             onChange={(e) => setTypedTitle(e.target.value)}
           />
@@ -383,11 +490,7 @@ export function MeetingComposeForm({
       <Field
         label={t("fieldTranscriptLabel")}
         hint={t("fieldTranscriptHint")}
-        error={
-          overWireCap
-            ? t("wireBudgetExceeded", { used: candidateArgs.bytes })
-            : undefined
-        }
+        error={wireErrorText}
       >
         {(control) => (
           <textarea
@@ -401,9 +504,11 @@ export function MeetingComposeForm({
         )}
       </Field>
 
-      <div className="mm-wire-meter num" data-over={overWireCap ? "true" : undefined}>
-        {t("wireBudgetUsage", { used: candidateArgs.bytes, max: SCREEN_SERVICE_ARGS_BYTES })}
-      </div>
+      {showWireMeter ? (
+        <div className="mm-wire-meter num" data-over={overWireCap ? "true" : undefined}>
+          {t("wireBudgetUsage", { used: candidateArgs.bytes, max: SCREEN_SERVICE_ARGS_BYTES })}
+        </div>
+      ) : null}
 
       <Notice className="mm-assistant-callout" state="assistant-hint">
         <strong>{t("assistantCalloutTitle")}:</strong> {t("assistantCalloutBody")}
@@ -662,7 +767,7 @@ export default function MeetingComposeDrawer({
       tabs={[]}
       edit={{
         formId,
-        title: t("newMinutes"),
+        title: "",
         body: formNode,
         saveLabel: t("createMinutes"),
         pending,

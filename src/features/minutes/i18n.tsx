@@ -146,9 +146,16 @@ export const EN_TEXT = {
   assistantCalloutTitle: "Consolidate with the workspace assistant",
   assistantCalloutBody:
     "You can save raw transcript text now, then ask the workspace assistant in chat to draft summary, decisions and follow-ups for owner approval.",
+  createTranscriptHint:
+    "Paste timestamped lines or raw notes. After saving, edit details anytime or ask the workspace assistant to draft summary, decisions and follow-ups.",
+  optionalSettingsAutoTitle: "Untitled meeting (named from discussion)",
+  optionalSettingsParticipantsCount: "{count} listed",
+  optionalSettingsNoParticipants: "No attendees listed",
+  optionalSettingsSuffix: "Optional · editable anytime",
+  createEmptyError: "Paste a transcript or enter a meeting title before saving.",
   wireBudgetUsage: "Screen save payload: {used} / {max} bytes",
   wireBudgetExceeded:
-    "This meeting payload ({used} bytes) exceeds the 16,384-byte screen wire limit. Shorten the pasted transcript or split long sessions.",
+    "This meeting payload ({used} bytes) exceeds the {max}-byte screen save limit. Shorten the pasted transcript or split long sessions.",
   formEmptyContentError: "Provide at least a transcript, summary, decision, follow-up or title before saving.",
   staleConflictError:
     "This meeting was updated elsewhere. Close and reopen to review the latest revision before saving.",
@@ -296,9 +303,16 @@ export const ZH_HK_TEXT: Record<MinutesTextKey, string> = {
   assistantCalloutTitle: "配合工作區助手整理紀要",
   assistantCalloutBody:
     "你可先儲存原始逐字稿，再於對話視窗請工作區助手草擬摘要、決議與跟進事項，並交由擁有者核准後寫入。",
+  createTranscriptHint:
+    "貼上對話逐字稿或會議筆記；儲存後可隨時補充詳情，或請工作區助手整理摘要、決議與跟進事項。",
+  optionalSettingsAutoTitle: "未命名會議（自動根據內容命名）",
+  optionalSettingsParticipantsCount: "已填 {count} 位出席者",
+  optionalSettingsNoParticipants: "未填出席者",
+  optionalSettingsSuffix: "選填，可隨時修改",
+  createEmptyError: "儲存前請貼上逐字稿或輸入會議標題。",
   wireBudgetUsage: "畫面儲存負載：{used} / {max} 位元組",
   wireBudgetExceeded:
-    "此會議資料（{used} 位元組）超出畫面通訊的 16,384 位元組上限，請精簡貼上的逐字稿或分拆儲存。",
+    "此會議資料（{used} 位元組）超出畫面儲存的 {max} 位元組上限，請精簡貼上的逐字稿或分拆儲存。",
   formEmptyContentError: "儲存前請至少填寫逐字稿、摘要、決議、跟進事項或標題其中一項。",
   staleConflictError: "此會議紀錄剛在其他地方更新。請先關閉並重新開啟以檢視最新版本。",
 };
@@ -307,6 +321,7 @@ const SHARED_UI_ZH_HK: Record<string, string> = {
   Close: "關閉",
   Cancel: "取消",
   Save: "儲存",
+  "Saving…": "儲存中…",
   Retry: "重試",
   "More actions": "更多操作",
   Search: "搜尋",

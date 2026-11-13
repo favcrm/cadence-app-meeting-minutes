@@ -1,8 +1,8 @@
-# Meeting minutes (`meeting-minutes` `0.4.0`)
+# Meeting minutes (`meeting-minutes` `0.4.1`)
 
 Structured meeting notes, decisions, follow-ups, and pasted transcripts for hosted Cadence workspaces.
 
-## Architecture & Contracts (`v0.4.0`)
+## Architecture & Contracts (`v0.4.1`)
 
 - **Bridge receiver**: `@cadence/app-kit@0.3.0` (`createScreenBridge`) vendored from `favcrm/cadence` `ec37956158f88a53d372f2c29495665dbe48dd97` (`app-kit/` + `app-kit.lock.json`), accepting `["screen.v2", "screen-surfaces.v1", "screen-records.v1", "screen-locale.v1"]` and emitting `{ v: 2, op: "leave", unsaved }`.
 - **Shared screen components & styling**: `@cadence/screen-ui@1.0.0` (`.cadence-ui/cadence-screen-ui-1.0.0.tgz` + `screen-ui.lock.json`).
