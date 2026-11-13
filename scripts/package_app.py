@@ -42,7 +42,18 @@ DESCRIPTOR_CONTRACTS = {
     "app-chat.json": "app-chat/v1",
     "app-storage.json": "app-storage/v1",
 }
-TOP_DIRS = ("workflows", "rubrics", "templates", "views", "bindings", "screens", "storage", "assets")
+TOP_DIRS = ("workflows", "rubrics", "templates", "views", "bindings", "screens", "storage", "assets", "skills")
+SKILL_DIR = "skills"
+SKILL_MANIFEST = "skill.json"
+SKILL_ENTRY = "SKILL.md"
+SKILL_FILES_MAX = 16
+SKILL_FILE_BYTES = 16 * 1024
+SKILL_MANIFEST_BYTES = 4 * 1024
+SKILL_PACKAGE_BYTES = 32 * 1024
+SKILL_ROOT_EXTS = ("md", "txt", "json", "yaml", "yml", "csv", "css", "svg")
+SKILL_NESTED_EXTS = {"scripts": ("py", "sh", "js", "mjs"), "references": ("md", "txt")}
+SKILL_ALL_EXTS = SKILL_ROOT_EXTS + SKILL_NESTED_EXTS["scripts"]
+SKILL_TOKEN_RE = re.compile(r"[A-Za-z0-9._/-]+")
 STORAGE_DESCRIPTOR = "app-storage.json"
 STORAGE_DIR = "storage"
 STORAGE_CONTRACT = "app-storage/v1"
@@ -491,6 +502,9 @@ def bundle_files(root: Path) -> list[str]:
                     raise PackageError(f"invalid screen member {rel}")
                 files.append(rel)
             continue
+        if top == SKILL_DIR:
+            files.extend(_skill_source_files(root))
+            continue
         for entry in sorted(os.scandir(root / top), key=lambda e: e.name):
             name = entry.name
             rel = f"{top}/{name}"
@@ -532,6 +546,61 @@ def bundle_files(root: Path) -> list[str]:
     return files
 
 
+def _skill_source_files(root: Path) -> list[str]:
+    found: list[str] = []
+    for tag_entry in sorted(os.scandir(root / SKILL_DIR), key=lambda e: e.name):
+        tag = tag_entry.name
+        _check_utf8_name(tag, SKILL_DIR)
+        if tag_entry.is_symlink() or not tag_entry.is_dir(follow_symlinks=False):
+            raise PackageError(
+                f"app source entry 'skills/{tag}' — a skill package is a skills/<tag>/ directory"
+            )
+        for entry in sorted(os.scandir(root / SKILL_DIR / tag), key=lambda e: e.name):
+            name = entry.name
+            rel = f"{SKILL_DIR}/{tag}/{name}"
+            _check_utf8_name(name, rel)
+            if name.startswith("."):
+                raise PackageError(f"app source entry '{rel}': dotfiles are not app content")
+            if entry.is_symlink():
+                raise PackageError(f"app source entry '{rel}': a symlink refuses")
+            if entry.is_dir(follow_symlinks=False):
+                if name not in SKILL_NESTED_EXTS:
+                    raise PackageError(
+                        f"app source entry '{rel}': a skill package nests only scripts/ and references/"
+                    )
+                for leaf in sorted(os.scandir(root / SKILL_DIR / tag / name), key=lambda e: e.name):
+                    leaf_rel = f"{rel}/{leaf.name}"
+                    _check_utf8_name(leaf.name, leaf_rel)
+                    if leaf.name.startswith("."):
+                        raise PackageError(f"app source entry '{leaf_rel}': dotfiles are not app content")
+                    if leaf.is_symlink() or not leaf.is_file(follow_symlinks=False):
+                        raise PackageError(f"app source entry '{leaf_rel}': a skill member is a regular file")
+                    found.append(leaf_rel)
+                continue
+            if not entry.is_file(follow_symlinks=False):
+                raise PackageError(f"app source entry '{rel}': not a regular file")
+            found.append(rel)
+    return found
+
+
+def _skill_leaf_ok(name: str, exts: tuple[str, ...]) -> bool:
+    if not name or not name.isascii() or name.startswith(".") or "\\" in name or "\0" in name:
+        return False
+    return any(name.endswith(f".{ext}") and len(name) > len(ext) + 1 for ext in exts)
+
+
+def skill_member_ok(member: str) -> bool:
+    if not member or not member.isascii() or "\\" in member or "\0" in member:
+        return False
+    segments = member.split("/")
+    if len(segments) == 1:
+        return _skill_leaf_ok(segments[0], SKILL_ROOT_EXTS)
+    if len(segments) == 2:
+        exts = SKILL_NESTED_EXTS.get(segments[0])
+        return exts is not None and _skill_leaf_ok(segments[1], exts)
+    return False
+
+
 def screen_leaf(name: str) -> bool:
     return (
         name == "screens.json"
@@ -540,6 +609,12 @@ def screen_leaf(name: str) -> bool:
 
 
 def file_cap(rel: str) -> int:
+    if rel.startswith(f"{SKILL_DIR}/"):
+        return (
+            SKILL_MANIFEST_BYTES
+            if rel.count("/") == 2 and rel.endswith(f"/{SKILL_MANIFEST}")
+            else SKILL_FILE_BYTES
+        )
     if rel == STORAGE_DESCRIPTOR:
         return MAX_STORAGE_DESCRIPTOR_BYTES
     if rel.startswith(f"{STORAGE_DIR}/"):
@@ -1041,6 +1116,129 @@ def _check_app_storage(
             seen.append(name)
 
 
+def _skill_references(text: str, tag: str) -> list[tuple[str, str, bool, str]]:
+    found = []
+    for raw in SKILL_TOKEN_RE.findall(text):
+        token = raw.rstrip(".")
+        if not token:
+            continue
+        absolute = token.startswith("/") and not token.startswith(".")
+        escaped = False
+        segments = []
+        for segment in token.split("/"):
+            if segment in ("", "."):
+                continue
+            if segment == "..":
+                escaped = True
+            else:
+                segments.append(segment)
+        if not segments or absolute:
+            continue
+        path = "/".join(segments)
+        if path.startswith(f"{SKILL_DIR}/"):
+            owner, sep, member = path[len(SKILL_DIR) + 1 :].partition("/")
+            if sep:
+                found.append((owner, member, escaped, token))
+            continue
+        if any(path.startswith(f"{directory}/") for directory in SKILL_NESTED_EXTS):
+            found.append((tag, path, escaped, token))
+            continue
+        if "/" in path or "." not in path:
+            continue
+        if path.rsplit(".", 1)[1] not in SKILL_ALL_EXTS:
+            continue
+        found.append((tag, path, escaped, token))
+    return found
+
+
+def _check_skill_package(tag: str, files: dict[str, str], where: str) -> None:
+    prefix = f"{SKILL_DIR}/{tag}"
+    if not TAG_RE.fullmatch(tag):
+        raise PackageError(f"{where}: skill package '{tag}' — [a-z0-9-], at most 32 bytes")
+    if SKILL_MANIFEST not in files:
+        raise PackageError(f"{where}: skill package '{tag}' needs {prefix}/{SKILL_MANIFEST}")
+    manifest_text = files[SKILL_MANIFEST]
+    if len(manifest_text.encode("utf-8")) > SKILL_MANIFEST_BYTES:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} exceeds {SKILL_MANIFEST_BYTES} bytes")
+
+    def closed(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} repeats field {key!r}")
+            result[key] = value
+        return result
+
+    try:
+        manifest = json.loads(manifest_text, object_pairs_hook=closed)
+    except ValueError as e:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST}: {e}") from e
+    if not isinstance(manifest, dict) or set(manifest) != {"schema", "name", "files"}:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} holds exactly schema, name and files")
+    if type(manifest["schema"]) is not int or manifest["schema"] != 1:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} schema must be integer 1")
+    if manifest["name"] != tag:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} name must match '{tag}'")
+    declared = manifest["files"]
+    if not isinstance(declared, list) or not declared:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} declares no files")
+    if len(declared) > SKILL_FILES_MAX:
+        raise PackageError(f"{where}: {prefix} declares more than {SKILL_FILES_MAX} files")
+    seen: list[str] = []
+    for member in declared:
+        if not isinstance(member, str):
+            raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} files must all be strings")
+        if member == SKILL_MANIFEST:
+            raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} lists itself")
+        if not skill_member_ok(member):
+            raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} declares invalid member '{member}'")
+        if member in seen:
+            raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} declares '{member}' twice")
+        seen.append(member)
+    if SKILL_ENTRY not in seen:
+        raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} must declare {SKILL_ENTRY}")
+    for member in files:
+        if not skill_member_ok(member):
+            raise PackageError(f"{where}: {prefix}/{member} is not a package member")
+    for member in seen:
+        if member not in files:
+            raise PackageError(f"{where}: {prefix}/{SKILL_MANIFEST} declares missing '{member}'")
+    for member in files:
+        if member != SKILL_MANIFEST and member not in seen:
+            raise PackageError(f"{where}: {prefix}/{member} is undeclared in {prefix}/{SKILL_MANIFEST}")
+    total = len(manifest_text.encode("utf-8"))
+    for member in seen:
+        size = len(files[member].encode("utf-8"))
+        if size > SKILL_FILE_BYTES:
+            raise PackageError(f"{where}: {prefix}/{member} exceeds {SKILL_FILE_BYTES} bytes")
+        total += size
+    if total > SKILL_PACKAGE_BYTES:
+        raise PackageError(f"{where}: {prefix} exceeds {SKILL_PACKAGE_BYTES} bytes")
+    for member in seen:
+        for owner, ref, escaped, token in _skill_references(files[member], tag):
+            if escaped:
+                raise PackageError(f"{where}: {prefix}/{member}: '{token}' reaches '..'")
+            if owner != tag:
+                raise PackageError(f"{where}: {prefix}/{member}: '{token}' names skill '{owner}'")
+            if ref not in seen:
+                raise PackageError(
+                    f"{where}: {prefix}/{member}: '{token}' is undeclared in {prefix}/{SKILL_MANIFEST}"
+                )
+
+
+def _check_skills(contents: list[tuple[str, bytes]], where: str) -> None:
+    packages: dict[str, dict[str, str]] = {}
+    for rel, data in contents:
+        if not rel.startswith(f"{SKILL_DIR}/"):
+            continue
+        parts = rel.split("/", 2)
+        if len(parts) != 3:
+            raise PackageError(f"{where}: {rel} — a skill package is a skills/<tag>/ directory")
+        packages.setdefault(parts[1], {})[parts[2]] = data.decode("utf-8")
+    for tag in sorted(packages):
+        _check_skill_package(tag, packages[tag], where)
+
+
 def check_pairing(manifest: Manifest, files: list[str], where: str) -> None:
     present = set(files)
     if "app-actions.json" in present and "app-assistant.json" not in present:
@@ -1100,6 +1298,7 @@ def check_file_bytes(
         if rel in DESCRIPTOR_CONTRACTS:
             _check_descriptor_json(rel, text, where)
     _check_app_storage(contents, where, app)
+    _check_skills(contents, where)
 
 
 def read_manifest(root: Path, files: list[str] | None = None) -> Manifest:
@@ -1279,6 +1478,12 @@ def _check_member_tree(rels: list[str], archive_name: str) -> None:
             files.append(rel)
             dirs.add("screens")
             continue
+        if parts[0] == SKILL_DIR and 3 <= len(parts) <= 4 and not rel.endswith("/"):
+            if any(part.startswith(".") for part in parts):
+                raise PackageError(f"{archive_name}: dotfile {rel}")
+            files.append(rel)
+            dirs.add(SKILL_DIR)
+            continue
         if len(parts) != 2 or rel.endswith("/"):
             raise PackageError(f"{archive_name}: member {rel} — app dirs are flat")
         top, name = parts
@@ -1310,6 +1515,13 @@ def _check_member_dir(drel: str, archive_name: str, prefix: str, full: str) -> N
     if not full.startswith(prefix):
         raise PackageError(f"{archive_name}: directory {full} outside {prefix}")
     if drel.rstrip("/") == SCREEN_DIR:
+        return
+    skill_parts = drel.rstrip("/").split("/")
+    if skill_parts[0] == SKILL_DIR and 2 <= len(skill_parts) <= 3:
+        if skill_parts[1].startswith(".") or (
+            len(skill_parts) == 3 and skill_parts[2] not in SKILL_NESTED_EXTS
+        ):
+            raise PackageError(f"{archive_name}: invalid skill directory {full}")
         return
     if not drel or "/" in drel.rstrip("/"):
         raise PackageError(f"{archive_name}: nested directory {full} refuses")

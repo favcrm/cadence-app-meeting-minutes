@@ -72,7 +72,7 @@ describe("Bilingual i18n parity (en + written zh-HK)", () => {
             install_id: "inst-zh-1",
             name: "meeting-minutes",
             title: "Meeting minutes",
-            version: "0.6.1",
+            version: "0.7.0",
             digest: DIGEST,
             summary: "會議紀錄",
           },

@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "name": "transcript-intake",
+  "files": [
+    "SKILL.md",
+    "references/intake-formats.md"
+  ]
+}

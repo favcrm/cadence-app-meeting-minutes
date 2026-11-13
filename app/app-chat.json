@@ -6,9 +6,9 @@
       "id": "all",
       "label": "Meetings",
       "prompts": [
-        "Turn a pasted transcript into minutes",
-        "Open the latest meeting",
-        "What did we decide?"
+        "Summarize decisions from recent meetings",
+        "Which follow-ups are still open across meetings?",
+        "Turn an attached transcript into structured minutes"
       ],
       "record": {
         "label": "Meeting",
@@ -20,17 +20,28 @@
       }
     },
     {
+      "id": "new",
+      "label": "New meeting",
+      "prompts": [
+        "Turn an attached caption file or transcript into minutes",
+        "Draft structured minutes from pasted meeting notes",
+        "Check if a meeting for today already exists"
+      ]
+    },
+    {
       "id": "followups",
       "label": "Follow-ups",
       "prompts": [
         "Which follow-ups are still open?",
-        "Who owns the remaining follow-ups?"
+        "Who owns the remaining follow-ups?",
+        "Turn open follow-ups into board tickets"
       ],
       "record": {
         "label": "Meeting",
         "prompts": [
           "Review the follow-ups for this meeting",
-          "Check every follow-up against the transcript"
+          "Check every follow-up against the transcript",
+          "Mark completed follow-ups as done"
         ]
       }
     }

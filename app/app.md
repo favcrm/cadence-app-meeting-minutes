@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.6.1'
+version: '0.7.0'
 summary: Keep meeting transcripts, summaries, decisions and follow-ups in workspace records, with host audio capture and approved assistant consolidation.
 needs:
   connections: []
@@ -33,10 +33,13 @@ listing:
 
 # Meeting minutes
 
-This bundle installs `meeting-minutes` (`0.6.1`) with an app-owned screen
+This bundle installs `meeting-minutes` (`0.7.0`) with an app-owned screen
 (`screens/minutes/`, `app-screens/v2`) built on the pinned `@cadence/app-kit`
-bridge and `@cadence/screen-ui` controls, plus an app-owned `app-storage/v1`
-schema (`app-storage.json` and `storage/001-initial.json`).
+bridge and `@cadence/screen-ui` controls, an app-owned `app-storage/v1` schema
+(`app-storage.json` and `storage/001-initial.json`), `app-chat/v1` contexts for
+all three screen sections (`all`, `new`, `followups`), and three bundled agent
+skills under `skills/` (`minutes-consolidation`, `transcript-intake`, and
+`followup-management`).
 
 The package requires `app-screens`, `screen-records`, `screen-startup` and
 `app-storage` v1, and optionally negotiates `screen-audio.v2` on hosts that
@@ -68,9 +71,18 @@ Native Cadence has no `app-storage` execution runtime and honestly refuses
 adapter validate migration hashes and serve `records.list`, `records.show`,
 `records.create`, `records.update` and `screen.route.patch`.
 
-## Workspace assistant procedure (`app_describe` and `app_call`)
+## Workspace assistant and MCP procedure (`app_describe`, `app_skill` and `app_call`)
 
-When querying, consolidating or updating minutes through the workspace assistant:
+Hosted workspace chat, CLI (`cadence --org <org> platform call`) and Workspace MCP
+(`/mcp/workspace`) discover this bundle's callable verbs, storage schema and
+skills through `app_describe` (`{"app": "meeting-minutes"}`) and read task
+procedures on demand via `app_skill`:
+
+- `minutes-consolidation`: Consolidate or refine a meeting transcript into an executive summary, `[MM:SS]`-cited decisions and grounded follow-ups (`assistant_consolidation`) without overwriting `title_source: "user"` or inventing owners/dates.
+- `transcript-intake`: Import WebVTT/SRT captions, document attachments (`chat_attachment_read`) or external meeting transcripts into normalized `[MM:SS] Speaker: utterance` records.
+- `followup-management`: Search across meetings with `omit_fields: ["transcript"]`, toggle follow-up completion (`followup_toggle`), soft-archive superseded rows (`status: "archived"`) and hand off follow-ups to workspace issues.
+
+Core invariants across every surface:
 
 1. **Discover schema on empty boards:** Call `app_describe` with `{"app": "meeting-minutes"}` to inspect the declared `meetings` fields, enums, JSON item schemas (`decisions[]` and `followups[]`), and `search_columns` before staging the first `records.create`.
 2. **Query lightweight pages first:** `record_search_columns` covers `title`, `participants_text`, `summary`, `tags`, `decisions`, `followups`, and `transcript`. When scanning multiple meetings or checking open follow-ups, call `records.list` with `omit_fields: ["transcript"]` (plus optional `query`, `filters` such as `[{"field": "status", "op": "eq", "value": "draft"}]` or `[{"field": "followups", "op": "contains", "value": "\"status\":\"open\""}]`, and `sort: {"field": "held_at", "direction": "desc"}`) so full transcripts are only loaded via `records.show` when needed.
