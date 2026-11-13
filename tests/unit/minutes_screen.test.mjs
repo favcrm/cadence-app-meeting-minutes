@@ -5,6 +5,12 @@ import { createRoot } from "react-dom/client";
 import { channel } from "../../src/bridge/channel.ts";
 import { resetScopeForTests } from "../../src/bridge/scope.ts";
 import {
+  createInitialTrackerState,
+  formatClock,
+  formatWallClockAtOffset,
+  reconcileStreamingTranscript,
+} from "../../src/features/minutes/liveTranscript.ts";
+import {
   deriveGeneratedTitle,
   parseTranscriptLines,
   resolveTitleSubmission,
@@ -167,7 +173,7 @@ function mountWithMockHost({
         install_id: INSTALL_ID,
         name: "meeting-minutes",
         title: "Meeting minutes",
-        version: "0.6.0",
+        version: "0.6.1",
         digest: DIGEST,
         summary: "Meeting minutes",
       },
@@ -213,7 +219,7 @@ function mountWithMockHost({
           peak: 82,
           segments_total: 1,
           segments_done: 1,
-          transcript: "[00:12] Ada Lin: Confirm Harbour City launch date next Tuesday.",
+          transcript: "Ada Lin: Confirm Harbour City launch date next Tuesday.",
         });
         emitAudio(started);
         hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: started });
@@ -227,11 +233,11 @@ function mountWithMockHost({
           elapsed_seconds: 125,
           level: 0,
           peak: 0,
-          segments_total: 2,
-          segments_done: 2,
+          segments_total: 3,
+          segments_done: 3,
+          no_speech_segments: 1,
           transcript:
-            audioSnap.transcript ||
-            "[00:12] Ada Lin: Confirm Harbour City launch date next Tuesday.",
+            "Ada Lin: Confirm Harbour City launch date next Tuesday.\nMarcus Ho: Staging sign-off finishes Friday.",
         });
         emitAudio(stopped);
         hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: stopped });
@@ -250,7 +256,8 @@ function mountWithMockHost({
           elapsed_seconds: 184,
           segments_total: 2,
           segments_done: 2,
-          transcript: "[00:08] Carmen Leung: Upload Harbour City roster.",
+          transcript:
+            "Carmen Leung: Upload Harbour City roster.\nAlex Wong: Circulate vendor delivery schedule.",
         });
         emitAudio(uploaded);
         hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: uploaded });
@@ -365,6 +372,135 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     ]);
   });
 
+  test("stamps untimestamped streaming audio segments accurately across silent gaps, uploads, and middle retries", () => {
+    expect(formatClock(0)).toBe("00:00");
+    expect(formatClock(125)).toBe("02:05");
+    expect(formatClock(3725)).toBe("01:02:05");
+    expect(formatWallClockAtOffset("2026-11-13T04:00:00Z", "00:20", "en")).toMatch(/^\d{2}:00:20$/);
+
+    // Live record mode: segment 0 spoken (00:00), segment 1 silent, segment 2 failed -> segment 3 spoken (00:30), then segment 2 retried -> inserted at 00:20!
+    let state = createInitialTrackerState();
+    state = reconcileStreamingTranscript(
+      state,
+      makeAudioSnapshot({
+        session_id: "s-rec",
+        mode: "record",
+        phase: "recording",
+        elapsed_seconds: 10,
+        segments_total: 1,
+        segments_done: 1,
+        no_speech_segments: 0,
+        transcript: "First spoken segment",
+      }),
+    );
+    expect(state.formattedTranscript).toBe("[00:00] First spoken segment");
+
+    // Segment 1 silent at 20s
+    state = reconcileStreamingTranscript(
+      state,
+      makeAudioSnapshot({
+        session_id: "s-rec",
+        mode: "record",
+        phase: "recording",
+        elapsed_seconds: 20,
+        segments_total: 2,
+        segments_done: 2,
+        no_speech_segments: 1,
+        transcript: "First spoken segment",
+      }),
+    );
+    expect(state.formattedTranscript).toBe("[00:00] First spoken segment");
+
+    // Segment 2 fails at 30s
+    state = reconcileStreamingTranscript(
+      state,
+      makeAudioSnapshot({
+        session_id: "s-rec",
+        mode: "record",
+        phase: "recording",
+        elapsed_seconds: 30,
+        segments_total: 3,
+        segments_done: 2,
+        segments_failed: 1,
+        no_speech_segments: 1,
+        transcript: "First spoken segment",
+      }),
+    );
+
+    // Segment 3 succeeds at 40s -> should get [00:30]
+    state = reconcileStreamingTranscript(
+      state,
+      makeAudioSnapshot({
+        session_id: "s-rec",
+        mode: "record",
+        phase: "ready",
+        elapsed_seconds: 40,
+        segments_total: 4,
+        segments_done: 3,
+        segments_failed: 1,
+        no_speech_segments: 1,
+        transcript: "First spoken segment\nFourth segment after failure",
+      }),
+    );
+    expect(state.formattedTranscript).toBe(
+      "[00:00] First spoken segment\n[00:30] Fourth segment after failure",
+    );
+
+    // Retry re-queues failed segment 2 (segments_failed drops 1 -> 0, in_flight = 1)
+    state = reconcileStreamingTranscript(
+      state,
+      makeAudioSnapshot({
+        session_id: "s-rec",
+        mode: "record",
+        phase: "transcribing",
+        elapsed_seconds: 40,
+        segments_total: 4,
+        segments_done: 3,
+        segments_in_flight: 1,
+        segments_failed: 0,
+        no_speech_segments: 1,
+        transcript: "First spoken segment\nFourth segment after failure",
+      }),
+    );
+
+    // Retried segment 2 completes -> inserted in middle with its exact original [00:20] timestamp!
+    state = reconcileStreamingTranscript(
+      state,
+      makeAudioSnapshot({
+        session_id: "s-rec",
+        mode: "record",
+        phase: "ready",
+        elapsed_seconds: 40,
+        segments_total: 4,
+        segments_done: 4,
+        segments_in_flight: 0,
+        segments_failed: 0,
+        no_speech_segments: 1,
+        transcript: "First spoken segment\nRecovered third segment\nFourth segment after failure",
+      }),
+    );
+    expect(state.formattedTranscript).toBe(
+      "[00:00] First spoken segment\n[00:20] Recovered third segment\n[00:30] Fourth segment after failure",
+    );
+
+    // Upload mode (45s chunks) + passthrough of pre-timestamped lines
+    const upState = reconcileStreamingTranscript(
+      createInitialTrackerState(),
+      makeAudioSnapshot({
+        session_id: "s-up",
+        mode: "upload",
+        phase: "ready",
+        elapsed_seconds: 130,
+        segments_total: 3,
+        segments_done: 3,
+        transcript: "Opening remarks\nSecond chunk notes\n[01:35] Explicit timestamp preserved",
+      }),
+    );
+    expect(upState.formattedTranscript).toBe(
+      "[00:00] Opening remarks\n[00:45] Second chunk notes\n[01:35] Explicit timestamp preserved",
+    );
+  });
+
   test("opens dedicated full-page MeetingDetailPage with underline tabs and supports inline Rename to user title (zero drawers)", async () => {
     const r1 = makeRecord("mtg-user-1", {
       profile: { title: "Q4 onboarding sync", title_source: "user" },
@@ -400,6 +536,30 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     expect(tabs.some((t) => t?.startsWith("Decisions & Follow-ups"))).toBe(true);
     expect(tabs.some((t) => t?.startsWith("Transcript"))).toBe(true);
     expect(tabs.some((t) => t?.startsWith("History"))).toBe(true);
+
+    // Verify full-width 2-column executive result layout, 4 KPI cells, inline digest table & right rail
+    expect(container.querySelector(".mm-detail-grid")).not.toBeNull();
+    expect(container.querySelectorAll(".mm-result-kpi-cell").length).toBe(4);
+    expect(container.querySelector(".mm-digest-card")).not.toBeNull();
+    expect(container.querySelector(".mm-result-actions-table")).not.toBeNull();
+    expect(container.querySelectorAll(".mm-participant-chip").length).toBe(2);
+
+    // Clicking decision [02:10] evidence pill jumps to Transcript tab & highlights cited row
+    const jumpBtn = container.querySelector(".mm-ts-pill-jump");
+    expect(jumpBtn?.textContent?.trim()).toBe("02:10");
+    jumpBtn.click();
+
+    await waitFor(() => container.querySelector(".mm-transcript-panel-card") !== null);
+    const highlightedRow = container.querySelector('.mm-transcript-line[data-highlighted="true"]');
+    expect(highlightedRow).not.toBeNull();
+    expect(highlightedRow?.getAttribute("data-ts-key")).toBe("02:10");
+    expect(highlightedRow?.textContent).toContain("Cited in decision: Use two-stage checklist");
+
+    // Search filter highlights matches with <mark>
+    const filterInput = container.querySelector(".mm-transcript-search-input");
+    setReactValue(filterInput, "checklist");
+    await waitFor(() => container.querySelector("mark.mm-search-mark") !== null);
+    expect(container.querySelector("mark.mm-search-mark")?.textContent?.toLowerCase()).toBe("checklist");
 
     const renameBtn = [...container.querySelectorAll("button")].find(
       (b) => b.textContent?.trim() === "Rename",
@@ -560,7 +720,7 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
         install_id: INSTALL_ID,
         name: "foreign-app",
         title: "Foreign",
-        version: "0.6.0",
+        version: "0.6.1",
         digest: DIGEST,
         summary: "Foreign",
       },
@@ -604,8 +764,12 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     expect(container.querySelector(".mm-live-transcript-text")?.textContent).toContain(
       "Confirm Harbour City launch date next Tuesday",
     );
+    const livePills = [...container.querySelectorAll(".mm-live-ts-pill")].map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(livePills[0]).toBe("00:00");
 
-    // 1-click End meeting & save -> sends stop, persists duration_seconds & held_at, opens MeetingDetailPage!
+    // 1-click End meeting & save -> sends stop, persists timestamped transcript, duration_seconds & held_at, opens MeetingDetailPage!
     const endAndSaveBtn = container.querySelector("#mm-btn-end-and-save");
     endAndSaveBtn.click();
 
@@ -616,11 +780,14 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     expect(createCall.args.profile.title_source).toBe("generated");
     expect(createCall.args.profile.duration_seconds).toBe(125);
     expect(createCall.args.profile.held_at).toBe("2026-11-13T04:00:00Z");
+    expect(createCall.args.profile.transcript).toBe(
+      "[00:00] Ada Lin: Confirm Harbour City launch date next Tuesday.\n[00:20] Marcus Ho: Staging sign-off finishes Friday.",
+    );
 
     await waitFor(() => container.querySelector(".mm-detail-page") !== null);
   });
 
-  test("uploads multi-format audio file via screen-audio.v2 preserving file.lastModified as held_at", async () => {
+  test("uploads multi-format audio file via screen-audio.v2 with structured 45s timestamps and preserves file.lastModified as held_at", async () => {
     const { container, calls, audioCommands } = mountWithMockHost({
       records: [],
       route: { section: "new", view: "list", record_id: null, segment_id: null },
@@ -642,8 +809,21 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     await input[propKey].onChange({ target: { files: [file] } });
 
     await waitFor(() =>
-      container.querySelector(".mm-mono-textarea")?.value.includes("Upload Harbour City roster"),
+      (container.querySelector(".mm-live-transcript-card")?.textContent ?? "").includes(
+        "Upload Harbour City roster",
+      ),
     );
+    const uploadTsPills = [...container.querySelectorAll(".mm-live-ts-pill")].map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(uploadTsPills).toEqual(["00:00", "00:45"]);
+
+    // Toggle inline raw text editor and verify timestamped text is editable
+    container.querySelector("#mm-btn-toggle-transcript-edit").click();
+    await waitFor(() =>
+      container.querySelector(".mm-mono-textarea")?.value.includes("[00:45] Alex Wong"),
+    );
+
     const uploadCmd = audioCommands.find((cmd) => cmd.action === "upload");
     expect(uploadCmd).toBeTruthy();
     expect(uploadCmd.file_name).toBe("standup.m4a");
@@ -656,5 +836,8 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     const createCall = calls.find((c) => c.verb === "records.create");
     expect(createCall.args.profile.duration_seconds).toBe(184);
     expect(createCall.args.profile.held_at).toBe("2026-11-12T09:30:00Z");
+    expect(createCall.args.profile.transcript).toBe(
+      "[00:00] Carmen Leung: Upload Harbour City roster.\n[00:45] Alex Wong: Circulate vendor delivery schedule.",
+    );
   });
 });

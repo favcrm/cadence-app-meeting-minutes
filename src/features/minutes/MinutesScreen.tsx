@@ -465,18 +465,9 @@ function MinutesScreenInner() {
                 </div>
               </div>
             ) : (
-              <div className="mm-empty-stack">
-                <EmptyState title={t("emptyTitle")} name="meetings">
-                  {t("emptyBody")}
-                </EmptyState>
-                {canCreate ? (
-                  <div className="mm-empty-cta">
-                    <Button variant="primary" onClick={openCompose}>
-                      {t("newMinutes")}
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
+              <EmptyState title={t("emptyTitle")} name="meetings">
+                {t("emptyBody")}
+              </EmptyState>
             )
           ) : (
             <>
