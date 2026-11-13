@@ -20,7 +20,7 @@ function makePush(overrides = {}) {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.3.0",
+      version: "0.6.0",
       digest: DIGEST,
       summary: "Structured meeting minutes",
     },
@@ -60,7 +60,7 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     ).toThrow();
   });
 
-  test("advertises the exact 5 capabilities on ready and maps refusal codes accurately", async () => {
+  test("advertises the exact 4 capabilities (including screen-audio.v2, without drawers) on ready and maps refusal codes accurately", async () => {
     resetScopeForTests();
     let hostPort = null;
     let initPayload = null;
@@ -90,31 +90,37 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     });
     expect(hostPort).toBeTruthy();
 
+    let resolveReady;
     const readyPromise = new Promise((resolve) => {
-      hostPort.onmessage = (event) => {
-        if (event.data?.op === "ready") resolve(event.data);
-      };
+      resolveReady = resolve;
     });
-    hostPort.start();
-    const ready = await readyPromise;
-    expect(ready).toEqual({
-      v: 1,
-      op: "ready",
-      accepts: [
-        "screen.v2",
-        "screen-surfaces.v1",
-        "screen-records.v1",
-        "screen-locale.v1",
-        "screen-audio.v1",
-      ],
-    });
-
-    hostPort.postMessage({ v: 1, op: "surface", role: "primary", modal: false });
-    hostPort.postMessage(makePush());
-    await new Promise((r) => setTimeout(r, 15));
-
     hostPort.onmessage = (event) => {
       const msg = event.data;
+      if (msg?.op === "ready") {
+        resolveReady(msg);
+        return;
+      }
+      if (msg?.op === "audio-session") {
+        const state = {
+          session_id: "sess-01",
+          mode: "record",
+          phase: "recording",
+          held_at: "2026-11-13T04:00:00Z",
+          elapsed_seconds: 3,
+          level: 64,
+          peak: 82,
+          segments_total: 1,
+          segments_done: 1,
+          segments_in_flight: 0,
+          segments_failed: 0,
+          no_speech_segments: 0,
+          transcript: "[00:03] Carmen: Kickoff.",
+          error: null,
+        };
+        hostPort.postMessage({ v: 2, op: "audio-session-event", state });
+        hostPort.postMessage({ v: 2, op: "audio-session-reply", id: msg.id, ok: true, data: state });
+        return;
+      }
       if (msg?.op !== "call") return;
       if (msg.args?.record_id === "missing") {
         hostPort.postMessage({
@@ -134,20 +140,69 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
         });
       }
     };
-
-    await expect(ch.request("records.show", { record_id: "missing" })).rejects.toMatchObject({
-      status: 404,
+    hostPort.start();
+    const ready = await readyPromise;
+    expect(ready).toEqual({
+      v: 1,
+      op: "ready",
+      accepts: [
+        "screen.v2",
+        "screen-records.v1",
+        "screen-locale.v1",
+        "screen-audio.v2",
+      ],
     });
-    await expect(
-      ch.request("records.update", {
+
+    hostPort.postMessage(makePush({ route: { section: "new", view: "list", record_id: null, segment_id: null } }));
+    await new Promise((r) => setTimeout(r, 15));
+
+    let ungrantedErr = null;
+    try {
+      await ch.audioSession(
+        { installId: INSTALL_ID, digest: DIGEST, contextId: "org-test" },
+        { action: "start", language: "zh" },
+      );
+    } catch (err) {
+      ungrantedErr = err;
+    }
+    expect(ungrantedErr?.status).toBe(403);
+
+    hostPort.postMessage(
+      makePush({
+        audio_capture: 1,
+        route: { section: "new", view: "list", record_id: null, segment_id: null },
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 15));
+
+    const snap = await ch.audioSession(
+      { installId: INSTALL_ID, digest: DIGEST, contextId: "org-test" },
+      { action: "start", language: "zh" },
+    );
+    expect(snap.phase).toBe("recording");
+    expect(ch.getAudioSession()?.level).toBe(64);
+
+    let missingErr = null;
+    try {
+      await ch.request("records.show", { record_id: "missing" });
+    } catch (err) {
+      missingErr = err;
+    }
+    expect(missingErr?.status).toBe(404);
+
+    let staleErr = null;
+    try {
+      await ch.request("records.update", {
         record_id: "stale",
         expected_revision: 1,
         profile: { title: "Updated" },
-      }),
-    ).rejects.toMatchObject({
-      status: 409,
-    });
+      });
+    } catch (err) {
+      staleErr = err;
+    }
+    expect(staleErr?.status).toBe(409);
 
+    hostPort.close();
     ch.resetForTests();
   });
 
@@ -166,7 +221,7 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     ).toThrow(/16 KiB wire budget/);
   });
 
-  test("admits hosted screen-surfaces.v1 drawer verbs on push and publishes generic v2 leave state", async () => {
+  test("admits section=new route and publishes generic v2 leave state while rejecting malformed actions", async () => {
     resetScopeForTests();
     let hostPort = null;
     const leaves = [];
@@ -197,11 +252,11 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
       if (event.data?.op === "leave") leaves.push(event.data);
     };
 
-    hostPort.postMessage({ v: 1, op: "surface", role: "primary", modal: false });
     hostPort.postMessage(
       makePush({
         context_id: "default",
         presentation_locale: "zh-TW",
+        route: { section: "new", view: "list", record_id: null, segment_id: null },
         contexts: [{ id: "default", label: "Meeting minutes" }],
         runs: [],
         outbox: [],
@@ -226,6 +281,7 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     const scope = getScope();
     expect(scope).toBeTruthy();
     expect(scope.presentationLocale).toBe("zh-HK");
+    expect(scope.route?.section).toBe("new");
     expect(admitted("records.create", scope.actions)).toBe(true);
     expect(admitted("screen.drawer.open", scope.actions)).toBe(false);
     expect(scope.actions).not.toContain("records.delete");
@@ -252,6 +308,7 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     expect(getScope()).toBeNull();
     expect(scopeError()).toContain("Invalid screen scope projection");
 
+    hostPort.close();
     resetScopeForTests();
   });
 });

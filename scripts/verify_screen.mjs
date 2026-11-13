@@ -86,6 +86,7 @@ const navigation = {
   default_section: "all",
   sections: [
     { id: "all", label: "All meetings" },
+    { id: "new", label: "New meeting" },
     { id: "followups", label: "Follow-ups" },
   ],
 };
@@ -176,8 +177,8 @@ if (
   kitLock.schema !== "cadence-app-kit-lock/1" ||
   kitLock.source.kind !== "commit" ||
   kitLock.source.repo !== "favcrm/cadence" ||
-  kitLock.source.source_sha !== "278834fe9590e68b59fd84331a9f3e4eff6fefb2" ||
-  kitLock.version !== "0.4.0"
+  kitLock.source.source_sha !== "103172f366e82fba596b2597466e3d75e561a2b4" ||
+  kitLock.version !== "0.5.0"
 ) {
   fail("app-kit lock identity mismatch");
 }

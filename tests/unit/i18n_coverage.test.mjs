@@ -60,7 +60,6 @@ describe("Bilingual i18n parity (en + written zh-HK)", () => {
     hostPort.onmessage = (event) => {
       const msg = event.data;
       if (msg?.op === "ready") {
-        hostPort.postMessage({ v: 1, op: "surface", role: "primary", modal: false });
         hostPort.postMessage({
           v: 2,
           op: "screen",
@@ -73,7 +72,7 @@ describe("Bilingual i18n parity (en + written zh-HK)", () => {
             install_id: "inst-zh-1",
             name: "meeting-minutes",
             title: "Meeting minutes",
-            version: "0.3.0",
+            version: "0.6.0",
             digest: DIGEST,
             summary: "會議紀錄",
           },

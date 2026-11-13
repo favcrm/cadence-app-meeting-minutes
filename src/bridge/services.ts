@@ -18,7 +18,7 @@ export interface CallArgs {
     consent_provenance?: unknown;
   };
   "screen.route.patch": {
-    section?: "all" | "followups";
+    section?: "all" | "new" | "followups";
     view?: "list" | "new";
     record_id?: string | null;
     segment_id?: string | null;
