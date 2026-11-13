@@ -177,7 +177,7 @@ if (
   kitLock.schema !== "cadence-app-kit-lock/1" ||
   kitLock.source.kind !== "commit" ||
   kitLock.source.repo !== "favcrm/cadence" ||
-  kitLock.source.source_sha !== "103172f366e82fba596b2597466e3d75e561a2b4" ||
+  kitLock.source.source_sha !== "1918854fb264104789b80720369a215ac3f8c580" ||
   kitLock.version !== "0.5.0"
 ) {
   fail("app-kit lock identity mismatch");

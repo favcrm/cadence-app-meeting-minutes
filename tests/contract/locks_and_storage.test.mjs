@@ -14,7 +14,7 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(lock.source).toEqual({
       kind: "commit",
       repo: "favcrm/cadence",
-      source_sha: "103172f366e82fba596b2597466e3d75e561a2b4",
+      source_sha: "1918854fb264104789b80720369a215ac3f8c580",
     });
     expect(lock.version).toBe("0.5.0");
     for (const [rel, expectedHash] of Object.entries(lock.files)) {
