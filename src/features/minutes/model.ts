@@ -47,7 +47,7 @@ export function createSubItemId(prefix: "dec" | "fup", index: number): string {
 }
 
 const TIMESTAMP_PREFIX = /^\s*(?:\[)?(\d{1,2}:\d{2}(?::\d{2})?)(?:\])?\s+(.*)$/;
-const SPEAKER_PREFIX = /^([A-Za-z0-9\u4e00-\u9fff .,'()-]{1,40}):\s+(.+)$/;
+const SPEAKER_PREFIX = /^([A-Za-z0-9\u4e00-\u9fff .,'()-]{1,40})(?::\s+|：\s*)(.+)$/;
 
 export function parseTranscriptLines(transcript: string): TranscriptLine[] {
   const rawLines = transcript

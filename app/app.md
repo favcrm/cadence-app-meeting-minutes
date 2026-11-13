@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.4.0'
+version: '0.4.1'
 summary: Keep full meeting transcripts, summaries, decisions and follow-ups in workspace records, with owner-approved assistant consolidation.
 needs:
   connections: []

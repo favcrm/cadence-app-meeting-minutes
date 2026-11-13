@@ -247,6 +247,9 @@ describe("Meeting minutes domain model & screen interactions", () => {
     expect(
       deriveGeneratedTitle("[00:15] Carmen: Kickoff Q4 retail staffing plan for Harbour City."),
     ).toBe("Kickoff Q4 retail staffing plan for Harbour City");
+    expect(
+      deriveGeneratedTitle("00:12 林雅婷：確認下星期二前完成海港城快閃店排班與收銀機測試。"),
+    ).toBe("確認下星期二前完成海港城快閃店排班與收銀機測試");
 
     const generated = resolveTitleSubmission({
       typedTitle: "   ",
@@ -320,20 +323,71 @@ describe("Meeting minutes domain model & screen interactions", () => {
     expect(updateCall.args.consent_provenance).toEqual({ method: "inline_rename" });
   });
 
-  test("creates minutes from compose drawer with generated title when title left blank and null owner/due", async () => {
+  test("creates minutes from minimal source-first compose drawer with collapsed optional settings and keeps full editor in detail drawer", async () => {
     const { container, calls } = mountWithMockHost({
       records: [],
       route: { section: "all", view: "new", record_id: null, segment_id: null },
     });
 
     await waitFor(() => container.querySelector(".mm-mono-textarea") !== null);
-    const transcriptArea = container.querySelector(".mm-mono-textarea");
+    const createForm = container.querySelector("#mm-create-form");
+    expect(createForm).toBeTruthy();
+
+    // Minimal create surface: no Status/When/Duration/Tags/Summary/Decisions/Follow-ups/WireMeter upfront,
+    // and optional Title + Participants collapsed inside <details class="mm-optional-settings">.
+    const optionalDetails = createForm.querySelector("details.mm-optional-settings");
+    expect(optionalDetails).toBeTruthy();
+    expect(optionalDetails.hasAttribute("open")).toBe(false);
+    expect(optionalDetails.textContent).toContain("Untitled meeting (named from discussion)");
+    expect(optionalDetails.textContent).toContain("No attendees listed");
+    expect(createForm.querySelector(".mm-wire-meter")).toBeNull();
+    expect(createForm.querySelector('input[type="datetime-local"]')).toBeNull();
+    expect(createForm.querySelector('input[type="number"]')).toBeNull();
+    expect(
+      [...createForm.querySelectorAll("button")].some((b) =>
+        (b.textContent ?? "").includes("Add follow-up"),
+      ),
+    ).toBe(false);
+
+    const transcriptArea = createForm.querySelector(".mm-mono-textarea");
     setReactValue(
       transcriptArea,
       "[00:30] Priya Nair: Finalize Q1 partner SLA terms before next Tuesday.",
     );
     await waitFor(() => transcriptArea.value.includes("Finalize Q1 partner SLA terms"));
 
+    // Collapsed summary previews the auto-extracted heading live.
+    expect(optionalDetails.querySelector(".mm-optional-summary-title")?.textContent).toBe(
+      "Finalize Q1 partner SLA terms before next Tuesday",
+    );
+
+    createForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => calls.some((c) => c.verb === "records.create"));
+    const createCall = calls.find((c) => c.verb === "records.create");
+    expect(createCall.args.profile.title).toBe(
+      "Finalize Q1 partner SLA terms before next Tuesday",
+    );
+    expect(createCall.args.profile.title_source).toBe("generated");
+    expect(createCall.args.profile.status).toBe("draft");
+    expect(typeof createCall.args.profile.held_at).toBe("string");
+    expect(createCall.args.profile.held_at.length).toBeGreaterThan(10);
+    expect(createCall.args.profile.duration_seconds).toBeNull();
+    expect(createCall.args.profile.followups).toEqual([]);
+    expect(createCall.args.profile.decisions).toEqual([]);
+
+    // After creation, detail drawer opens -> clicking "Edit minutes" exposes full editor including follow-ups with null owner/due honesty.
+    await waitFor(() =>
+      [...container.querySelectorAll("button")].some(
+        (b) => b.textContent?.trim() === "Edit minutes",
+      ),
+    );
+    const editBtn = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Edit minutes",
+    );
+    editBtn.click();
+
+    await waitFor(() => container.querySelector("#mm-edit-form") !== null);
     const addFollowupBtn = [...container.querySelectorAll("button")].find((b) =>
       (b.textContent ?? "").includes("Add follow-up"),
     );
@@ -345,17 +399,12 @@ describe("Meeting minutes domain model & screen interactions", () => {
     setReactValue(followupTaskInput, "Circulate redlined SLA appendix");
     await waitFor(() => followupTaskInput.value === "Circulate redlined SLA appendix");
 
-    const createForm = container.querySelector("#mm-create-form");
-    expect(createForm).toBeTruthy();
-    createForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    const editForm = container.querySelector("#mm-edit-form");
+    editForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 
-    await waitFor(() => calls.some((c) => c.verb === "records.create"));
-    const createCall = calls.find((c) => c.verb === "records.create");
-    expect(createCall.args.profile.title).toBe(
-      "Finalize Q1 partner SLA terms before next Tuesday",
-    );
-    expect(createCall.args.profile.title_source).toBe("generated");
-    expect(createCall.args.profile.followups).toEqual([
+    await waitFor(() => calls.some((c) => c.verb === "records.update"));
+    const updateCall = calls.find((c) => c.verb === "records.update");
+    expect(updateCall.args.profile.followups).toEqual([
       expect.objectContaining({
         task: "Circulate redlined SLA appendix",
         owner: null,
