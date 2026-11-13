@@ -92,11 +92,12 @@ function pushScreen(): void {
     digest: DIGEST,
     context_id: CONTEXT_ID,
     presentation_locale: locale,
+    ...(access === "owner" ? { audio_capture: 1 } : {}),
     installation: {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.4.0",
+      version: "0.5.0",
       digest: DIGEST,
       summary:
         "Turn meeting discussions and notes into structured minutes, decisions, and follow-ups.",
@@ -322,6 +323,36 @@ window.addEventListener("message", (event) => {
     if (msg.op === "leave" && msg.v === 2 && typeof msg.unsaved === "boolean") {
       leaveIndicator.dataset.unsaved = msg.unsaved ? "true" : "false";
       leaveIndicator.textContent = msg.unsaved ? "Unsaved draft" : "Saved";
+      return;
+    }
+    if (msg.op === "audio" && msg.v === 2 && typeof msg.id === "string") {
+      if (access !== "owner") {
+        port.postMessage({
+          v: 2,
+          op: "audio-reply",
+          id: msg.id,
+          ok: false,
+          refusal: { code: "forbidden", text: "Audio capture requires owner access." },
+        });
+        return;
+      }
+      const isUpload = msg.mode === "upload";
+      const sampleTranscript =
+        locale === "zh-TW"
+          ? "[00:08] 梁嘉敏：確定下星期二尖沙咀海港城門市開幕排更同物資清單。\n[01:14] 黃俊傑：我星期五前整理好供應商送貨時間表。"
+          : "[00:08] Carmen Leung: Confirm Harbour City launch roster and logistics checklist for next Tuesday.\n[01:14] Alex Wong: I will circulate the vendor delivery schedule before Friday.";
+      port.postMessage({
+        v: 2,
+        op: "audio-reply",
+        id: msg.id,
+        ok: true,
+        data: {
+          transcript: sampleTranscript,
+          duration_seconds: 125,
+          held_at: "2026-11-13T04:00:00Z",
+          source: isUpload ? "upload" : "recording",
+        },
+      });
       return;
     }
     if (msg.op === "call" && typeof msg.id === "string" && typeof msg.verb === "string") {
