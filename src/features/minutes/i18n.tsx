@@ -152,6 +152,14 @@ export const EN_TEXT = {
   optionalSettingsParticipantsCount: "{count} listed",
   optionalSettingsNoParticipants: "No attendees listed",
   optionalSettingsSuffix: "Optional · editable anytime",
+  recordAudioAction: "Record audio",
+  uploadAudioAction: "Upload audio",
+  audioCapturingRecord: "Recording in host…",
+  audioCapturingUpload: "Uploading audio…",
+  audioQuickHint:
+    "Start live recording or upload an audio file (iPhone .m4a, WhatsApp .opus, MP3, WAV) with zero upfront fields.",
+  audioCapturedBadgeRecording: "Recorded · {duration}",
+  audioCapturedBadgeUpload: "Uploaded audio · {duration}",
   createEmptyError: "Paste a transcript or enter a meeting title before saving.",
   wireBudgetUsage: "Screen save payload: {used} / {max} bytes",
   wireBudgetExceeded:
@@ -309,6 +317,14 @@ export const ZH_HK_TEXT: Record<MinutesTextKey, string> = {
   optionalSettingsParticipantsCount: "已填 {count} 位出席者",
   optionalSettingsNoParticipants: "未填出席者",
   optionalSettingsSuffix: "選填，可隨時修改",
+  recordAudioAction: "開始錄音",
+  uploadAudioAction: "上載錄音檔",
+  audioCapturingRecord: "正在開啟錄音…",
+  audioCapturingUpload: "正在上載錄音檔…",
+  audioQuickHint:
+    "免填寫前置欄位，按一下即可即時錄音或上載手機錄音檔（iPhone .m4a、WhatsApp .opus、MP3、WAV）。",
+  audioCapturedBadgeRecording: "已錄音 · {duration}",
+  audioCapturedBadgeUpload: "已上載音訊 · {duration}",
   createEmptyError: "儲存前請貼上逐字稿或輸入會議標題。",
   wireBudgetUsage: "畫面儲存負載：{used} / {max} 位元組",
   wireBudgetExceeded:

@@ -60,7 +60,7 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     ).toThrow();
   });
 
-  test("advertises the exact 4 capabilities on ready and maps refusal codes accurately", async () => {
+  test("advertises the exact 5 capabilities on ready and maps refusal codes accurately", async () => {
     resetScopeForTests();
     let hostPort = null;
     let initPayload = null;
@@ -100,7 +100,13 @@ describe("Meeting minutes @cadence/app-kit bridge contract", () => {
     expect(ready).toEqual({
       v: 1,
       op: "ready",
-      accepts: ["screen.v2", "screen-surfaces.v1", "screen-records.v1", "screen-locale.v1"],
+      accepts: [
+        "screen.v2",
+        "screen-surfaces.v1",
+        "screen-records.v1",
+        "screen-locale.v1",
+        "screen-audio.v1",
+      ],
     });
 
     hostPort.postMessage({ v: 1, op: "surface", role: "primary", modal: false });

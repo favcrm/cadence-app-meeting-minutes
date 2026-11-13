@@ -1,6 +1,7 @@
+import type { ScreenAudioMode } from "@cadence/app-kit";
 import { ApiError, Button, ErrorNotice, Field, Notice, Select } from "@cadence/screen-ui";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { channel, useSurface } from "../../bridge/channel";
+import { channel, useCanAudioCapture, useSurface } from "../../bridge/channel";
 import type { DisplayScope } from "../../bridge/scope";
 import {
   measureArgsBytes,
@@ -50,6 +51,53 @@ export interface MeetingComposeFormProps {
 }
 
 const WIRE_METER_WARN_BYTES = Math.floor(SCREEN_SERVICE_ARGS_BYTES * 0.85);
+
+function formatAudioClock(totalSeconds: number): string {
+  const clamped = Math.max(1, Math.round(totalSeconds));
+  const mins = Math.floor(clamped / 60);
+  const secs = clamped % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function MicIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
 
 export function MeetingComposeForm({
   formId,
@@ -108,6 +156,11 @@ export function MeetingComposeForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const canAudioCapture = useCanAudioCapture();
+  const [audioBusyMode, setAudioBusyMode] = useState<ScreenAudioMode | null>(null);
+  const [capturedDurationSeconds, setCapturedDurationSeconds] = useState<number | null>(null);
+  const [capturedHeldAt, setCapturedHeldAt] = useState<string | null>(null);
+  const [lastCaptureSource, setLastCaptureSource] = useState<"recording" | "upload" | null>(null);
 
   const dirty = useMemo(() => {
     if (!record) {
@@ -146,15 +199,16 @@ export function MeetingComposeForm({
     const { participants, participantsText } = normalizeParticipants(participantsRaw);
     const { tags } = isEdit ? normalizeTags(tagsRaw) : { tags: [] as string[] };
     const parsedMins = Number(durationMinutes.trim());
-    const durationSeconds =
-      isEdit && durationMinutes.trim() && Number.isFinite(parsedMins) && parsedMins > 0
+    const durationSeconds = isEdit
+      ? durationMinutes.trim() && Number.isFinite(parsedMins) && parsedMins > 0
         ? Math.round(parsedMins * 60)
-        : null;
+        : null
+      : capturedDurationSeconds;
     const heldAt = isEdit
       ? heldAtInput.trim()
         ? heldAtInput.trim().slice(0, 40)
         : null
-      : createdAtIso.slice(0, 40);
+      : (capturedHeldAt ?? createdAtIso).slice(0, 40);
     const cleanDecisions: DecisionItem[] = isEdit
       ? decisions
           .filter((d) => d.text.trim().length > 0)
@@ -212,6 +266,8 @@ export function MeetingComposeForm({
       bytes: measureArgsBytes(baseArgs),
     };
   }, [
+    capturedDurationSeconds,
+    capturedHeldAt,
     createdAtIso,
     decisions,
     durationMinutes,
@@ -239,9 +295,37 @@ export function MeetingComposeForm({
     [t],
   );
 
+  const handleAudioCapture = async (mode: ScreenAudioMode) => {
+    if (pending || audioBusyMode !== null) return;
+    setSubmitError(null);
+    setAudioBusyMode(mode);
+    try {
+      const res = await channel.audioCapture(scope, { mode });
+      setTranscript((prev) =>
+        prev.trim().length > 0 ? `${prev.trimEnd()}\n\n${res.transcript}` : res.transcript,
+      );
+      setCapturedDurationSeconds((prev) => (prev ?? 0) + res.duration_seconds);
+      setCapturedHeldAt((prev) => prev ?? res.held_at.slice(0, 40));
+      setLastCaptureSource(res.source);
+      if (isEdit) {
+        setDurationMinutes((prev) =>
+          prev.trim() ? prev : String(Math.max(1, Math.round(res.duration_seconds / 60))),
+        );
+        setHeldAtInput((prev) => (prev.trim() ? prev : toDatetimeLocalValue(res.held_at)));
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "cancelled") {
+        return;
+      }
+      setSubmitError(error instanceof Error ? error.message : "Audio capture failed");
+    } finally {
+      setAudioBusyMode(null);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (pending) return;
+    if (pending || audioBusyMode !== null) return;
     setSubmitError(null);
     setTagsError(null);
 
@@ -300,6 +384,50 @@ export function MeetingComposeForm({
       })
     : undefined;
 
+  const audioBar = canAudioCapture ? (
+    <div className="mm-audio-bar" data-audio-bar="true">
+      <div className="mm-audio-actions">
+        <Button
+          id="mm-btn-record-audio"
+          variant={!isEdit && !transcript.trim() ? "primary" : "secondary"}
+          icon={<MicIcon />}
+          loading={audioBusyMode === "record"}
+          disabled={pending || audioBusyMode !== null}
+          onClick={() => {
+            void handleAudioCapture("record");
+          }}
+        >
+          {audioBusyMode === "record" ? t("audioCapturingRecord") : t("recordAudioAction")}
+        </Button>
+        <Button
+          id="mm-btn-upload-audio"
+          variant="secondary"
+          icon={<UploadIcon />}
+          loading={audioBusyMode === "upload"}
+          disabled={pending || audioBusyMode !== null}
+          onClick={() => {
+            void handleAudioCapture("upload");
+          }}
+        >
+          {audioBusyMode === "upload" ? t("audioCapturingUpload") : t("uploadAudioAction")}
+        </Button>
+      </div>
+      <div className="mm-audio-meta-row">
+        <p className="mm-audio-hint">{t("audioQuickHint")}</p>
+        {capturedDurationSeconds !== null && lastCaptureSource !== null ? (
+          <span className="mm-audio-captured-pill num" data-capture-source={lastCaptureSource}>
+            {t(
+              lastCaptureSource === "recording"
+                ? "audioCapturedBadgeRecording"
+                : "audioCapturedBadgeUpload",
+              { duration: formatAudioClock(capturedDurationSeconds) },
+            )}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  ) : null;
+
   if (!isEdit) {
     const createHeadingPreview =
       typedTitle.trim() ||
@@ -319,6 +447,8 @@ export function MeetingComposeForm({
       >
         {submitError ? <ErrorNotice>{submitError}</ErrorNotice> : null}
 
+        {audioBar}
+
         <Field
           label={t("fieldTranscriptLabel")}
           hint={t("createTranscriptHint")}
@@ -328,7 +458,7 @@ export function MeetingComposeForm({
             <textarea
               {...control}
               rows={10}
-              autoFocus
+              autoFocus={!canAudioCapture}
               className="field mm-mono-textarea mm-create-textarea"
               value={transcript}
               placeholder={t("fieldTranscriptPlaceholder")}
@@ -486,6 +616,8 @@ export function MeetingComposeForm({
           />
         )}
       </Field>
+
+      {audioBar}
 
       <Field
         label={t("fieldTranscriptLabel")}

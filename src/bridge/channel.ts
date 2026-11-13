@@ -1,6 +1,8 @@
 import { ApiError } from "@cadence/screen-ui";
 import {
   createScreenBridge,
+  type ScreenAudioCapture,
+  type ScreenAudioCaptureOptions,
   type ScreenBridge,
   type ScreenBridgeRuntimeOverrides,
   type ScreenSurfaceRole,
@@ -33,6 +35,7 @@ function createMinutesBridge(): ScreenBridge<MinutesSection, MinutesView, ApiErr
     records: true,
     surfaces: true,
     locale: true,
+    audio: true,
     calls: CALL_FIELDS,
     argBytes: SCREEN_SERVICE_ARGS_BYTES,
     writeVerbs: ["records.create", "records.update"],
@@ -116,6 +119,15 @@ export class Channel {
     return this.bridge.ownLeaveState();
   }
 
+  canAudioCapture = (): boolean => this.bridge.canAudioCapture();
+
+  audioCapture(
+    scope: DisplayScope,
+    options?: ScreenAudioCaptureOptions,
+  ): Promise<ScreenAudioCapture> {
+    return this.bridge.audioCapture(scope, options);
+  }
+
   call<T = unknown, K extends keyof CallArgs = keyof CallArgs>(
     scope: DisplayScope,
     verb: K,
@@ -151,6 +163,10 @@ export const channel = createChannel();
 
 export function useSurface(): SurfaceSnapshot {
   return useSyncExternalStore(channel.subscribeSurface, channel.getSurface);
+}
+
+export function useCanAudioCapture(): boolean {
+  return useSyncExternalStore(channel.subscribe, channel.canAudioCapture);
 }
 
 export function admitted(verb: string, actions: readonly string[]): boolean {
