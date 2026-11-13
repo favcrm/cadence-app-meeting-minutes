@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "name": "followup-management",
+  "files": [
+    "SKILL.md",
+    "references/query-patterns.md"
+  ]
+}

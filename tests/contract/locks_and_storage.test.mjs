@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -57,7 +59,7 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(writeSchema.then.properties.after.properties.title_source.const).toBe("user");
   });
 
-  test("app/app.md declares 0.6.1, required contracts, and no forbidden pricing keys", () => {
+  test("app/app.md declares 0.7.0, required contracts, and no forbidden pricing keys", () => {
     const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8"));
     const raw = readFileSync(resolve(ROOT, "app/app.md"), "utf8");
     const lines = raw.split(/\r?\n/);
@@ -65,7 +67,7 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     const manifest = parseYaml(lines.slice(1, end).join("\n"));
 
     expect(manifest.app).toBe("meeting-minutes");
-    expect(manifest.version).toBe("0.6.1");
+    expect(manifest.version).toBe("0.7.0");
     expect(pkg.version).toBe(manifest.version);
     expect(manifest.needs.requires.contracts).toEqual({
       "app-screens": [1],
@@ -78,5 +80,103 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(listingJson.includes('"cost"')).toBe(false);
     expect(listingJson.includes('"price"')).toBe(false);
     expect(listingJson.includes('"pricing"')).toBe(false);
+  });
+
+  test("app/skills bundles three valid skill packages and app/app-chat.json covers all navigation sections", () => {
+    const skillsRoot = resolve(ROOT, "app/skills");
+    const skillDirs = readdirSync(skillsRoot).sort();
+    expect(skillDirs).toEqual([
+      "followup-management",
+      "minutes-consolidation",
+      "transcript-intake",
+    ]);
+
+    for (const tag of skillDirs) {
+      const manifest = JSON.parse(
+        readFileSync(resolve(skillsRoot, tag, "skill.json"), "utf8"),
+      );
+      expect(Object.keys(manifest).sort()).toEqual(["files", "name", "schema"]);
+      expect(manifest.schema).toBe(1);
+      expect(manifest.name).toBe(tag);
+      expect(manifest.files).toContain("SKILL.md");
+
+      const entryRaw = readFileSync(resolve(skillsRoot, tag, "SKILL.md"), "utf8");
+      const lines = entryRaw.split(/\r?\n/);
+      expect(lines[0]).toBe("---");
+      const end = lines.findIndex((line, idx) => idx > 0 && line === "---");
+      expect(end).toBeGreaterThan(1);
+      const frontmatter = parseYaml(lines.slice(1, end).join("\n"));
+      expect(frontmatter.name).toBe(tag);
+      expect(typeof frontmatter.description).toBe("string");
+      expect(frontmatter.description.length).toBeGreaterThan(20);
+      expect(frontmatter.description.length).toBeLessThanOrEqual(240);
+    }
+
+    const screenDecl = JSON.parse(
+      readFileSync(resolve(ROOT, "app/screens/minutes/screens.json"), "utf8"),
+    );
+    const chatDecl = JSON.parse(
+      readFileSync(resolve(ROOT, "app/app-chat.json"), "utf8"),
+    );
+    const navIds = screenDecl.navigation.sections.map((s) => s.id);
+    const chatIds = chatDecl.contexts.map((c) => c.id);
+    expect(chatIds).toEqual(navIds);
+    for (const ctx of chatDecl.contexts) {
+      expect(ctx.prompts.length).toBeLessThanOrEqual(3);
+      for (const p of ctx.prompts) {
+        expect(p.length).toBeLessThanOrEqual(80);
+      }
+    }
+  });
+
+  test("assert-app-check.py accepts standalone app-storage refusal and rejects compound refusals", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "minutes-appcheck-test-"));
+    const storageClause =
+      "app requires host contract 'app-storage' major 1 — this host supports none (unknown contract)";
+    const runAssert = (doc) => {
+      const p = join(tempDir, "report.json");
+      writeFileSync(p, JSON.stringify(doc));
+      return spawnSync("python3", [".github/scripts/assert-app-check.py", p], {
+        cwd: ROOT,
+        encoding: "utf8",
+      });
+    };
+    try {
+      const okStorageOnly = runAssert({
+        ok: false,
+        digest: "sha256:" + "0".repeat(64),
+        files: [{ path: "app.md" }],
+        compatibility: {
+          checks: [
+            { contract: "app-screens", ok: true },
+            { contract: "app-storage", ok: false },
+          ],
+        },
+        refusal: {
+          code: "app_check_content",
+          message: `app is not installable — ${storageClause}`,
+        },
+      });
+      expect(okStorageOnly.status).toBe(0);
+
+      const compoundRefusal = runAssert({
+        ok: false,
+        digest: "sha256:" + "0".repeat(64),
+        files: [{ path: "app.md" }],
+        compatibility: {
+          checks: [
+            { contract: "app-screens", ok: true },
+            { contract: "app-storage", ok: false },
+          ],
+        },
+        refusal: {
+          code: "app_check_content",
+          message: `app is not installable — skills/bad: undeclared ref; ${storageClause}`,
+        },
+      });
+      expect(compoundRefusal.status).not.toBe(0);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
