@@ -20,7 +20,7 @@ function makePush(overrides = {}) {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.6.0",
+      version: "0.6.1",
       digest: DIGEST,
       summary: "Structured meeting minutes",
     },

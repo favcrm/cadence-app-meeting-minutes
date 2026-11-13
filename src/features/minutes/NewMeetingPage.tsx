@@ -2,6 +2,7 @@ import {
   MAX_AUDIO_UPLOAD_BYTES,
   type ScreenAudioLanguage,
   type ScreenAudioSessionPhase,
+  type ScreenAudioSessionSnapshot,
 } from "@cadence/app-kit";
 import { ApiError, Button, ErrorNotice, Field, Notice, Select } from "@cadence/screen-ui";
 import {
@@ -22,9 +23,19 @@ import {
 } from "../../bridge/services";
 import { useMinutesText } from "./i18n";
 import {
+  createInitialTrackerState,
+  formatClock,
+  formatHeldAtStartClock,
+  formatWallClockAtOffset,
+  reconcileStreamingTranscript,
+  UPLOAD_SEGMENT_STRIDE_SECONDS,
+  type TranscriptTrackerState,
+} from "./liveTranscript";
+import {
   createMeetingId,
   normalizeParticipants,
   parseMeetingShowResponse,
+  parseTranscriptLines,
   resolveTitleSubmission,
 } from "./model";
 import type { MeetingProfile, MeetingRecord } from "./types";
@@ -34,17 +45,6 @@ type LanguageChoice = "auto" | "zh" | "en";
 
 const VOICE_BAR_COUNT = 28;
 const WIRE_METER_WARN_BYTES = Math.floor(SCREEN_SERVICE_ARGS_BYTES * 0.85);
-
-function formatClock(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds || 0));
-  const hrs = Math.floor(safe / 3600);
-  const mins = Math.floor((safe % 3600) / 60);
-  const secs = safe % 60;
-  if (hrs > 0) {
-    return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  }
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
 
 function isBusyAudioPhase(phase: ScreenAudioSessionPhase | undefined): boolean {
   return (
@@ -152,7 +152,7 @@ export default function NewMeetingPage({
   onBack: () => void;
   onCreated: (created: MeetingRecord) => void;
 }) {
-  const { t } = useMinutesText();
+  const { locale, t } = useMinutesText();
   const canAudioCapture = useCanAudioCapture();
   const audioSession = useAudioSession();
 
@@ -166,6 +166,7 @@ export default function NewMeetingPage({
   const [participantsRaw, setParticipantsRaw] = useState<string>("");
   const [transcript, setTranscript] = useState<string>("");
   const [transcriptEditedManually, setTranscriptEditedManually] = useState<boolean>(false);
+  const [editingRawTranscript, setEditingRawTranscript] = useState<boolean>(false);
   const [capturedDurationSeconds, setCapturedDurationSeconds] = useState<number | null>(null);
   const [capturedHeldAt, setCapturedHeldAt] = useState<string | null>(null);
   const [lastCaptureSource, setLastCaptureSource] = useState<"recording" | "upload" | null>(null);
@@ -178,37 +179,56 @@ export default function NewMeetingPage({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const liveScrollRef = useRef<HTMLDivElement>(null);
+  const trackerRef = useRef<TranscriptTrackerState>(createInitialTrackerState());
   const [stickToBottom, setStickToBottom] = useState<boolean>(true);
+
+  const applyAudioSnapshot = (
+    snap: ScreenAudioSessionSnapshot,
+    options?: { allowOverwriteManual?: boolean },
+  ): string => {
+    const nextTracker = reconcileStreamingTranscript(trackerRef.current, snap);
+    trackerRef.current = nextTracker;
+    if (snap.held_at) {
+      setCapturedHeldAt(snap.held_at.slice(0, 40));
+    }
+    if (snap.elapsed_seconds > 0) {
+      setCapturedDurationSeconds(snap.elapsed_seconds);
+    }
+    setLastCaptureSource(snap.mode === "upload" ? "upload" : "recording");
+    if (options?.allowOverwriteManual || !transcriptEditedManually) {
+      setTranscript(nextTracker.formattedTranscript);
+    }
+    return nextTracker.formattedTranscript;
+  };
 
   // Switch automatically to Live recording when audio_capture capability arrives before user interacts
   useEffect(() => {
     if (canAudioCapture && !userPickedMode && !transcript.trim() && mode === "paste") {
       setMode("record");
-    } else if (!canAudioCapture && (mode === "record" || mode === "upload") && !isBusyAudioPhase(audioSession?.phase)) {
+    } else if (
+      !canAudioCapture &&
+      (mode === "record" || mode === "upload") &&
+      !isBusyAudioPhase(audioSession?.phase)
+    ) {
       setMode("paste");
     }
   }, [audioSession?.phase, canAudioCapture, mode, transcript, userPickedMode]);
 
-  // Synchronize streaming session transcript & metadata into page state unless manually edited after stop
+  // Synchronize streaming session transcript & segment timestamps into page state unless manually edited
   useEffect(() => {
-    if (!audioSession || audioSession.phase === "idle") return;
-    if (audioSession.held_at) {
-      setCapturedHeldAt(audioSession.held_at.slice(0, 40));
+    if (!audioSession || audioSession.phase === "idle") {
+      trackerRef.current = createInitialTrackerState();
+      return;
     }
-    if (audioSession.elapsed_seconds > 0) {
-      setCapturedDurationSeconds(audioSession.elapsed_seconds);
-    }
-    setLastCaptureSource(audioSession.mode === "upload" ? "upload" : "recording");
-    if (!transcriptEditedManually) {
-      setTranscript(audioSession.transcript);
-    }
+    applyAudioSnapshot(audioSession);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioSession, transcriptEditedManually]);
 
   // Auto-scroll live transcript box when new segments stream in
   useEffect(() => {
     if (!stickToBottom || !liveScrollRef.current) return;
     liveScrollRef.current.scrollTop = liveScrollRef.current.scrollHeight;
-  }, [audioSession?.transcript, stickToBottom]);
+  }, [transcript, audioSession?.phase, audioSession?.segments_in_flight, stickToBottom]);
 
   // Clean up any finished/active inline session when leaving NewMeetingPage
   const scopeRef = useRef(scope);
@@ -331,9 +351,13 @@ export default function NewMeetingPage({
     if (commandPending || savePending) return;
     setSubmitError(null);
     setTranscriptEditedManually(false);
+    setEditingRawTranscript(false);
+    setStickToBottom(true);
+    trackerRef.current = createInitialTrackerState();
     setCommandPending(true);
     try {
-      await channel.audioSession(scope, { action: "start", language: wireLanguage });
+      const snap = await channel.audioSession(scope, { action: "start", language: wireLanguage });
+      applyAudioSnapshot(snap, { allowOverwriteManual: true });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to start recording");
     } finally {
@@ -362,10 +386,7 @@ export default function NewMeetingPage({
     setCommandPending(true);
     try {
       const snap = await channel.audioSession(scope, { action: "stop" });
-      setTranscript(snap.transcript);
-      if (snap.elapsed_seconds > 0) setCapturedDurationSeconds(snap.elapsed_seconds);
-      if (snap.held_at) setCapturedHeldAt(snap.held_at.slice(0, 40));
-      setLastCaptureSource("recording");
+      applyAudioSnapshot(snap);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to stop recording");
     } finally {
@@ -379,21 +400,19 @@ export default function NewMeetingPage({
     setCommandPending(true);
     try {
       const snap = await channel.audioSession(scope, { action: "stop" });
-      setTranscript(snap.transcript);
-      if (snap.elapsed_seconds > 0) setCapturedDurationSeconds(snap.elapsed_seconds);
-      if (snap.held_at) setCapturedHeldAt(snap.held_at.slice(0, 40));
-      setLastCaptureSource("recording");
+      const stamped = applyAudioSnapshot(snap);
+      const effectiveTranscript = transcriptEditedManually ? transcript : stamped;
 
       // If any segment failed or there is no transcript/title yet, stay on review state so nothing is lost
-      if (snap.segments_failed > 0 || (!snap.transcript.trim() && !typedTitle.trim())) {
-        if (!snap.transcript.trim() && !typedTitle.trim() && !snap.error) {
+      if (snap.segments_failed > 0 || (!effectiveTranscript.trim() && !typedTitle.trim())) {
+        if (!effectiveTranscript.trim() && !typedTitle.trim() && !snap.error) {
           setSubmitError(t("createEmptyError"));
         }
         return;
       }
 
       await persistMeeting({
-        transcriptText: snap.transcript,
+        transcriptText: effectiveTranscript,
         durationSeconds: snap.elapsed_seconds > 0 ? snap.elapsed_seconds : null,
         heldAt: snap.held_at || createdAtIso,
       });
@@ -411,7 +430,7 @@ export default function NewMeetingPage({
     setCommandPending(true);
     try {
       const snap = await channel.audioSession(scope, { action: "retry" });
-      setTranscript(snap.transcript);
+      applyAudioSnapshot(snap, { allowOverwriteManual: true });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Retry failed");
     } finally {
@@ -425,8 +444,10 @@ export default function NewMeetingPage({
     setCommandPending(true);
     try {
       await channel.audioSession(scope, { action: "cancel" });
+      trackerRef.current = createInitialTrackerState();
       setTranscript("");
       setTranscriptEditedManually(false);
+      setEditingRawTranscript(false);
       setCapturedDurationSeconds(null);
       setCapturedHeldAt(null);
       setLastCaptureSource(null);
@@ -451,6 +472,9 @@ export default function NewMeetingPage({
     }
     setSelectedFileName(file.name);
     setTranscriptEditedManually(false);
+    setEditingRawTranscript(false);
+    setStickToBottom(true);
+    trackerRef.current = createInitialTrackerState();
     setCommandPending(true);
     try {
       const bytes = await file.arrayBuffer();
@@ -464,10 +488,7 @@ export default function NewMeetingPage({
           : {}),
         language: wireLanguage,
       });
-      setTranscript(snap.transcript);
-      if (snap.elapsed_seconds > 0) setCapturedDurationSeconds(snap.elapsed_seconds);
-      if (snap.held_at) setCapturedHeldAt(snap.held_at.slice(0, 40));
-      setLastCaptureSource("upload");
+      applyAudioSnapshot(snap, { allowOverwriteManual: true });
     } catch (error) {
       if (error instanceof ApiError) {
         setSubmitError(error.message);
@@ -551,6 +572,172 @@ export default function NewMeetingPage({
       })
     : undefined;
 
+  const parsedLiveLines = useMemo(() => parseTranscriptLines(transcript), [transcript]);
+  const activeOriginIso = audioSession?.held_at || capturedHeldAt || null;
+  const startClockLabel = useMemo(
+    () => formatHeldAtStartClock(activeOriginIso, locale),
+    [activeOriginIso, locale],
+  );
+  const showRawTranscriptEditor =
+    !audioBusy && (editingRawTranscript || Boolean(wireErrorText));
+
+  const activeLiveOffsetSeconds =
+    mode === "upload" || audioSession?.mode === "upload"
+      ? audioSession && audioSession.elapsed_seconds > 0
+        ? Math.min(
+            audioSession.elapsed_seconds,
+            (audioSession.segments_done ?? 0) * UPLOAD_SEGMENT_STRIDE_SECONDS,
+          )
+        : (audioSession?.segments_done ?? 0) * UPLOAD_SEGMENT_STRIDE_SECONDS
+      : (audioSession?.elapsed_seconds ?? 0);
+  const activeLiveClock = formatClock(activeLiveOffsetSeconds);
+  const activeLiveWallClock = formatWallClockAtOffset(activeOriginIso, activeLiveClock, locale);
+  const activeLiveStatusCopy =
+    sessionPhase === "paused"
+      ? t("liveTranscriptPaused")
+      : sessionPhase === "transcribing" ||
+          sessionPhase === "stopping" ||
+          (audioSession?.segments_in_flight ?? 0) > 0
+        ? t("liveTranscriptTranscribingSegment")
+        : t("liveTranscriptWaiting");
+
+  const liveTranscriptPanel = (
+    <section className="card mm-live-transcript-card" aria-label={t("liveTranscriptHeading")}>
+      <div className="mm-live-transcript-head">
+        <div className="mm-live-transcript-title-group">
+          <h2 className="mm-section-kicker">{t("liveTranscriptHeading")}</h2>
+          {parsedLiveLines.length > 0 ? (
+            <span className="mm-count-pill num">{parsedLiveLines.length}</span>
+          ) : null}
+          {startClockLabel ? (
+            <span className="mm-live-clock-origin num">
+              {t("liveTranscriptStartedAt", { time: startClockLabel })}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mm-live-transcript-actions">
+          {audioBusy && !stickToBottom ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setStickToBottom(true);
+                if (liveScrollRef.current) {
+                  liveScrollRef.current.scrollTop = liveScrollRef.current.scrollHeight;
+                }
+              }}
+            >
+              {t("liveTranscriptJumpLatest")}
+            </Button>
+          ) : null}
+
+          {!audioBusy && transcript.trim() ? (
+            <Button
+              id="mm-btn-toggle-transcript-edit"
+              size="sm"
+              variant="secondary"
+              onClick={() => setEditingRawTranscript((prev) => !prev)}
+            >
+              {showRawTranscriptEditor
+                ? t("liveTranscriptTimelineView")
+                : t("liveTranscriptEditRaw")}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {showRawTranscriptEditor ? (
+        <>
+          <Field
+            label={t("fieldTranscriptLabel")}
+            hint={t("createTranscriptHint")}
+            error={wireErrorText}
+          >
+            {(control) => (
+              <textarea
+                {...control}
+                rows={10}
+                className="field mm-mono-textarea mm-create-textarea"
+                value={transcript}
+                placeholder={t("fieldTranscriptPlaceholder")}
+                onChange={(e) => {
+                  setTranscriptEditedManually(true);
+                  setTranscript(e.target.value);
+                }}
+              />
+            )}
+          </Field>
+
+          {showWireMeter ? (
+            <div className="mm-wire-meter num" data-over={overWireCap ? "true" : undefined}>
+              {t("wireBudgetUsage", {
+                used: candidateArgs.bytes,
+                max: SCREEN_SERVICE_ARGS_BYTES,
+              })}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div
+          ref={liveScrollRef}
+          className="mm-live-transcript-scroll"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 28;
+            setStickToBottom(atBottom);
+          }}
+        >
+          <ol className="mm-live-transcript-list">
+            {parsedLiveLines.map((line, idx) => {
+              const tsLabel = line.timestamp ?? "00:00";
+              const wallClock = formatWallClockAtOffset(activeOriginIso, tsLabel, locale);
+              return (
+                <li key={idx} className="mm-live-transcript-row">
+                  <span
+                    className="mm-ts-pill mm-live-ts-pill num"
+                    title={wallClock ? `${tsLabel} · ${wallClock}` : tsLabel}
+                  >
+                    {tsLabel}
+                  </span>
+                  <div className="mm-transcript-utterance">
+                    {line.speaker ? (
+                      <strong className="mm-transcript-speaker">{line.speaker}</strong>
+                    ) : null}
+                    <span className="mm-live-transcript-text">{line.text}</span>
+                  </div>
+                  {wallClock ? <span className="mm-ts-wall num">{wallClock}</span> : null}
+                </li>
+              );
+            })}
+
+            {audioBusy ? (
+              <li
+                className="mm-live-transcript-row mm-live-transcript-row-active"
+                data-phase={sessionPhase}
+              >
+                <span className="mm-ts-pill mm-live-ts-pill mm-ts-pill-live num">
+                  {activeLiveClock}
+                </span>
+                <div className="mm-live-active-copy">
+                  <span
+                    className="mm-live-pulse-dot"
+                    data-paused={sessionPhase === "paused" ? "true" : undefined}
+                    aria-hidden="true"
+                  />
+                  <span className="mm-muted-copy">{activeLiveStatusCopy}</span>
+                </div>
+                {activeLiveWallClock ? (
+                  <span className="mm-ts-wall num">{activeLiveWallClock}</span>
+                ) : null}
+              </li>
+            ) : null}
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+
   const optionalSettingsDrawerless = (
     <details className="mm-optional-settings">
       <summary className="mm-optional-summary">
@@ -569,32 +756,34 @@ export default function NewMeetingPage({
       </summary>
 
       <div className="mm-optional-body">
-        <Field label={t("fieldTitleLabel")} hint={t("fieldTitleHintCreate")}>
-          {(control) => (
-            <input
-              {...control}
-              type="text"
-              className="field"
-              maxLength={200}
-              value={typedTitle}
-              placeholder={t("fieldTitlePlaceholder")}
-              onChange={(e) => setTypedTitle(e.target.value)}
-            />
-          )}
-        </Field>
+        <div className="mm-form-grid-2">
+          <Field label={t("fieldTitleLabel")} hint={t("fieldTitleHintCreate")}>
+            {(control) => (
+              <input
+                {...control}
+                type="text"
+                className="field"
+                maxLength={200}
+                value={typedTitle}
+                placeholder={t("fieldTitlePlaceholder")}
+                onChange={(e) => setTypedTitle(e.target.value)}
+              />
+            )}
+          </Field>
 
-        <Field label={t("fieldParticipantsLabel")} hint={t("fieldParticipantsHint")}>
-          {(control) => (
-            <input
-              {...control}
-              type="text"
-              className="field"
-              value={participantsRaw}
-              placeholder={t("fieldParticipantsPlaceholder")}
-              onChange={(e) => setParticipantsRaw(e.target.value)}
-            />
-          )}
-        </Field>
+          <Field label={t("fieldParticipantsLabel")} hint={t("fieldParticipantsHint")}>
+            {(control) => (
+              <input
+                {...control}
+                type="text"
+                className="field"
+                value={participantsRaw}
+                placeholder={t("fieldParticipantsPlaceholder")}
+                onChange={(e) => setParticipantsRaw(e.target.value)}
+              />
+            )}
+          </Field>
+        </div>
       </div>
     </details>
   );
@@ -884,77 +1073,10 @@ export default function NewMeetingPage({
 
               {sessionPhase === "idle" && !transcript.trim() ? (
                 optionalSettingsDrawerless
-              ) : audioBusy ? (
-                <>
-                  {inlineContextFields}
-
-                  <section className="card mm-live-transcript-card" aria-label={t("liveTranscriptHeading")}>
-                    <div className="mm-live-transcript-head">
-                      <h2 className="mm-section-kicker">{t("liveTranscriptHeading")}</h2>
-                      {!stickToBottom ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setStickToBottom(true);
-                            if (liveScrollRef.current) {
-                              liveScrollRef.current.scrollTop = liveScrollRef.current.scrollHeight;
-                            }
-                          }}
-                        >
-                          {t("liveTranscriptJumpLatest")}
-                        </Button>
-                      ) : null}
-                    </div>
-                    <div
-                      ref={liveScrollRef}
-                      className="mm-live-transcript-scroll"
-                      onScroll={(e) => {
-                        const el = e.currentTarget;
-                        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 28;
-                        setStickToBottom(atBottom);
-                      }}
-                    >
-                      {transcript.trim() ? (
-                        <p className="mm-live-transcript-text">{transcript}</p>
-                      ) : (
-                        <p className="mm-muted-copy">{t("liveTranscriptWaiting")}</p>
-                      )}
-                    </div>
-                  </section>
-                </>
               ) : (
                 <>
+                  {liveTranscriptPanel}
                   {inlineContextFields}
-
-                  <Field
-                    label={t("fieldTranscriptLabel")}
-                    hint={t("createTranscriptHint")}
-                    error={wireErrorText}
-                  >
-                    {(control) => (
-                      <textarea
-                        {...control}
-                        rows={10}
-                        className="field mm-mono-textarea mm-create-textarea"
-                        value={transcript}
-                        placeholder={t("fieldTranscriptPlaceholder")}
-                        onChange={(e) => {
-                          setTranscriptEditedManually(true);
-                          setTranscript(e.target.value);
-                        }}
-                      />
-                    )}
-                  </Field>
-
-                  {showWireMeter ? (
-                    <div className="mm-wire-meter num" data-over={overWireCap ? "true" : undefined}>
-                      {t("wireBudgetUsage", {
-                        used: candidateArgs.bytes,
-                        max: SCREEN_SERVICE_ARGS_BYTES,
-                      })}
-                    </div>
-                  ) : null}
                 </>
               )}
             </form>
@@ -983,17 +1105,21 @@ export default function NewMeetingPage({
                   hidden
                   onChange={onFileInputChange}
                 />
-                <div className="mm-upload-icon-circle">
-                  <UploadIcon />
-                </div>
-                <strong className="mm-upload-title">{t("uploadDropTitle")}</strong>
-                <p className="mm-upload-formats">{t("uploadDropFormats")}</p>
 
-                {selectedFileName ? (
-                  <span className="mm-meta-pill">
-                    {t("uploadSelectedFile", { name: selectedFileName })}
-                  </span>
-                ) : null}
+                <div className="mm-upload-head">
+                  <div className="mm-upload-icon-circle">
+                    <UploadIcon />
+                  </div>
+                  <div className="mm-upload-copy">
+                    <strong className="mm-upload-title">{t("uploadDropTitle")}</strong>
+                    <p className="mm-upload-formats">{t("uploadDropFormats")}</p>
+                  </div>
+                  {selectedFileName ? (
+                    <span className="mm-meta-pill mm-upload-file-pill">
+                      {t("uploadSelectedFile", { name: selectedFileName })}
+                    </span>
+                  ) : null}
+                </div>
 
                 <div className="mm-upload-controls">
                   <div className="mm-lang-select-wrap">
@@ -1052,39 +1178,10 @@ export default function NewMeetingPage({
                 ) : null}
               </div>
 
-              {optionalSettingsDrawerless}
-
-              {transcript.trim() || (audioSession && audioSession.mode === "upload") ? (
+              {audioBusy || transcript.trim() || (audioSession && audioSession.mode === "upload") ? (
                 <>
-                  <Field
-                    label={t("fieldTranscriptLabel")}
-                    hint={t("createTranscriptHint")}
-                    error={wireErrorText}
-                  >
-                    {(control) => (
-                      <textarea
-                        {...control}
-                        rows={10}
-                        className="field mm-mono-textarea mm-create-textarea"
-                        value={transcript}
-                        disabled={audioBusy}
-                        placeholder={t("fieldTranscriptPlaceholder")}
-                        onChange={(e) => {
-                          setTranscriptEditedManually(true);
-                          setTranscript(e.target.value);
-                        }}
-                      />
-                    )}
-                  </Field>
-
-                  {showWireMeter ? (
-                    <div className="mm-wire-meter num" data-over={overWireCap ? "true" : undefined}>
-                      {t("wireBudgetUsage", {
-                        used: candidateArgs.bytes,
-                        max: SCREEN_SERVICE_ARGS_BYTES,
-                      })}
-                    </div>
-                  ) : null}
+                  {liveTranscriptPanel}
+                  {optionalSettingsDrawerless}
 
                   <div className="mm-editor-footer">
                     {(audioSession?.segments_failed ?? 0) > 0 && !audioBusy ? (
@@ -1116,7 +1213,9 @@ export default function NewMeetingPage({
                     </Button>
                   </div>
                 </>
-              ) : null}
+              ) : (
+                optionalSettingsDrawerless
+              )}
             </form>
           ) : (
             <form

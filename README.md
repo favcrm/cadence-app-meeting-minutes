@@ -1,8 +1,8 @@
-# Meeting minutes (`meeting-minutes` `0.6.0`)
+# Meeting minutes (`meeting-minutes` `0.6.1`)
 
 Structured meeting notes, decisions, follow-ups, inline live audio recording, and multi-format audio file upload for hosted Cadence workspaces.
 
-## Architecture & Contracts (`v0.6.0`)
+## Architecture & Contracts (`v0.6.1`)
 
 - **Bridge receiver**: `@cadence/app-kit@0.5.0` (`createScreenBridge`) vendored from `favcrm/cadence` (`app-kit/` + `app-kit.lock.json`), accepting `["screen.v2", "screen-records.v1", "screen-locale.v1", "screen-audio.v2"]` and emitting `{ v: 2, op: "leave", unsaved }`.
 - **Shared screen components & styling**: `@cadence/screen-ui@1.0.0` (`.cadence-ui/cadence-screen-ui-1.0.0.tgz` + `screen-ui.lock.json`).
@@ -29,4 +29,4 @@ sh scripts/pre-push       # full local gate including archive determinism check
 
 ## Native vs Hosted Check
 
-`meeting-minutes` `0.6.0` requires `app-storage: [1]`, which is hosted-only. Running `cadence app check app --json` with Cadence `v0.3.22` exits `3` with the expected `app-storage` content refusal while emitting the canonical `digest` and `files` inventory verified by `.github/scripts/assert-app-check.py` and `.github/scripts/publish.mjs`.
+`meeting-minutes` `0.6.1` requires `app-storage: [1]`, which is hosted-only. Running `cadence app check app --json` with Cadence `v0.3.22` exits `3` with the expected `app-storage` content refusal while emitting the canonical `digest` and `files` inventory verified by `.github/scripts/assert-app-check.py` and `.github/scripts/publish.mjs`.

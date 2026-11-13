@@ -93,13 +93,13 @@ function emitAudioEvent(next: ScreenAudioSessionSnapshot): void {
 function sampleLines(): [string, string] {
   if (locale === "zh-TW") {
     return [
-      "[00:08] 梁嘉敏：確定下星期二尖沙咀海港城門市開幕排更同物資清單。",
-      "[00:42] 黃俊傑：我星期五前整理好供應商送貨時間表，並發畀大家確認。",
+      "梁嘉敏：確定下星期二尖沙咀海港城門市開幕排更同物資清單。",
+      "黃俊傑：我星期五前整理好供應商送貨時間表，並發畀大家確認。",
     ];
   }
   return [
-    "[00:08] Carmen Leung: Confirm Harbour City launch roster and logistics checklist for next Tuesday.",
-    "[00:42] Alex Wong: I will circulate the vendor delivery schedule before Friday for sign-off.",
+    "Carmen Leung: Confirm Harbour City launch roster and logistics checklist for next Tuesday.",
+    "Alex Wong: I will circulate the vendor delivery schedule before Friday for sign-off.",
   ];
 }
 
@@ -153,7 +153,7 @@ function pushScreen(): void {
       install_id: INSTALL_ID,
       name: "meeting-minutes",
       title: "Meeting minutes",
-      version: "0.6.0",
+      version: "0.6.1",
       digest: DIGEST,
       summary:
         "Turn meeting discussions and notes into structured minutes, decisions, and follow-ups.",
@@ -201,7 +201,7 @@ function handleAudioSession(id: string, msg: Record<string, unknown>): void {
       mode: "record",
       phase: "recording",
       held_at: heldAt,
-      elapsed_seconds: 1,
+      elapsed_seconds: 10,
       level: 58,
       peak: 76,
       segments_total: 1,
@@ -221,15 +221,17 @@ function handleAudioSession(id: string, msg: Record<string, unknown>): void {
       tick += 1;
       const level = 38 + ((tick * 19) % 44);
       const peak = Math.min(96, level + 16);
-      const hasSecondLine = tick >= 2;
+      const silentElapsed = tick >= 2;
+      const hasSecondSpoken = tick >= 3;
       emitAudioEvent({
         ...audioState,
-        elapsed_seconds: tick,
+        elapsed_seconds: hasSecondSpoken ? 27 + tick : silentElapsed ? 20 : 10 + tick,
         level,
         peak,
-        segments_total: hasSecondLine ? 2 : 1,
-        segments_done: hasSecondLine ? 2 : 1,
-        transcript: hasSecondLine ? `${line1}\n${line2}` : line1,
+        segments_total: hasSecondSpoken ? 3 : silentElapsed ? 2 : 1,
+        segments_done: hasSecondSpoken ? 3 : silentElapsed ? 2 : 1,
+        no_speech_segments: silentElapsed ? 1 : 0,
+        transcript: hasSecondSpoken ? `${line1}\n${line2}` : line1,
       });
     }, 600);
     return;
