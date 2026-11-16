@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.7.0'
+version: '0.7.1'
 summary: Keep meeting transcripts, summaries, decisions and follow-ups in workspace records, with host audio capture and approved assistant consolidation.
 needs:
   connections: []
@@ -33,7 +33,7 @@ listing:
 
 # Meeting minutes
 
-This bundle installs `meeting-minutes` (`0.7.0`) with an app-owned screen
+This bundle installs `meeting-minutes` (`0.7.1`) with an app-owned screen
 (`screens/minutes/`, `app-screens/v2`) built on the pinned `@cadence/app-kit`
 bridge and `@cadence/screen-ui` controls, an app-owned `app-storage/v1` schema
 (`app-storage.json` and `storage/001-initial.json`), `app-chat/v1` contexts for
@@ -78,7 +78,7 @@ Hosted workspace chat, CLI (`cadence --org <org> platform call`) and Workspace M
 skills through `app_describe` (`{"app": "meeting-minutes"}`) and read task
 procedures on demand via `app_skill`:
 
-- `minutes-consolidation`: Consolidate or refine a meeting transcript into an executive summary, `[MM:SS]`-cited decisions and grounded follow-ups (`assistant_consolidation`) without overwriting `title_source: "user"` or inventing owners/dates.
+- `minutes-consolidation`: Use the surrounding transcript to interpret imperfect speech, flag unresolved ambiguity, and draft an executive summary, `[MM:SS]`-cited decisions and grounded follow-ups (`assistant_consolidation`). Original transcript and quotations stay unchanged; user titles, owners and dates are not invented.
 - `transcript-intake`: Import WebVTT/SRT captions, document attachments (`chat_attachment_read`) or external meeting transcripts into normalized `[MM:SS] Speaker: utterance` records.
 - `followup-management`: Search across meetings with `omit_fields: ["transcript"]`, toggle follow-up completion (`followup_toggle`), soft-archive superseded rows (`status: "archived"`) and hand off follow-ups to workspace issues.
 
