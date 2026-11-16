@@ -9,6 +9,13 @@ its SHA256 digest. Never rewrite the page being reviewed.
    Transcript. No extra artifacts or a verdict inside the page.
 2. Every decision and follow-up is supported by the quoted transcript.
    No invented name, date, amount, attendance, vote, or next meeting.
+   Interpret unclear phrases using surrounding transcript context, but require
+   material uncertainty to be flagged instead of guessed. Original transcript
+   excerpts must remain verbatim, including when a summary explains meaning.
+   A named reviewer is not an approver unless the transcript says so; do not
+   accept a condition broadened beyond its stated action.
+   Each affected follow-up retains its explicit conditions and does not narrow
+   an ambiguously stated deadline.
 3. A provided subject is the title verbatim. "Untitled meeting" may
    become a short heading using only words already in the transcript.
 4. A follow-up owner is a name from the optional people list only when
