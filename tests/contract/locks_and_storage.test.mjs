@@ -59,7 +59,7 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     expect(writeSchema.then.properties.after.properties.title_source.const).toBe("user");
   });
 
-  test("app/app.md declares 0.7.0, required contracts, and no forbidden pricing keys", () => {
+  test("app/app.md matches package version, required contracts, and has no forbidden pricing keys", () => {
     const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8"));
     const raw = readFileSync(resolve(ROOT, "app/app.md"), "utf8");
     const lines = raw.split(/\r?\n/);
@@ -67,7 +67,6 @@ describe("Toolchain locks, app-storage/v1 migration integrity, and manifest hone
     const manifest = parseYaml(lines.slice(1, end).join("\n"));
 
     expect(manifest.app).toBe("meeting-minutes");
-    expect(manifest.version).toBe("0.7.0");
     expect(pkg.version).toBe(manifest.version);
     expect(manifest.needs.requires.contracts).toEqual({
       "app-screens": [1],

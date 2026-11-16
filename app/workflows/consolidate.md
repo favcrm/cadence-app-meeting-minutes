@@ -40,6 +40,24 @@ transcript that is only a URL, is insufficient: return outcome=failed
 with artifacts=[] in the supported producer envelope. Do not fetch a URL
 to repair a missing transcript.
 
+Read the whole transcript and use the passages before and after an unclear
+phrase, including later explicit corrections, to interpret imperfect speech
+recognition. Preserve mixed Cantonese and English in context. Paraphrase only
+when the source supports the meaning; do not claim to have verified the audio.
+Do not assert that the source was recorded or that a specific phrase was
+misrecognized unless the supplied evidence says so.
+Flag material ambiguity in the Summary rather than guessing a name, speaker,
+negation, amount, date, decision, or commitment. Leave an uncertain owner or
+deadline unspecified. Keep transcript excerpts verbatim, even when the summary
+explains a likely meaning.
+Do not equate a named reviewer with the approver or a review with approval
+unless explicitly stated, or broaden a condition beyond the action it qualifies.
+Keep an explicit approval or other condition in each affected follow-up, and
+preserve deadline wording when its precise cutoff is unclear.
+Before producing the page, check each follow-up against every relevant passage;
+include its explicit conditions in that item, even when the Summary or another
+item already mentions them.
+
 Use this shape and no other sections. The fence below is the page
 template, not a second ticket:
 
