@@ -550,6 +550,7 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     jumpBtn.click();
 
     await waitFor(() => container.querySelector(".mm-transcript-panel-card") !== null);
+    expect(container.textContent).toMatch(/recording replay.*unavailable.*transcript.*available/i);
     const highlightedRow = container.querySelector('.mm-transcript-line[data-highlighted="true"]');
     expect(highlightedRow).not.toBeNull();
     expect(highlightedRow?.getAttribute("data-ts-key")).toBe("02:10");

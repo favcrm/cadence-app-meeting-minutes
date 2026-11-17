@@ -938,6 +938,9 @@ export default function MeetingDetailPage({
                 </div>
               ) : activeTab === "transcript" ? (
                 <div className="mm-detail-stack">
+                  {!canAudioRetention ? (
+                    <p className="mm-muted-copy">{t("recordingPlaybackUnavailable")}</p>
+                  ) : null}
                   {recordingState === "available" ? (
                     <section className="card mm-detail-card" aria-label={t("recordingAvailable")}>
                       <div className="mm-live-transcript-head">
