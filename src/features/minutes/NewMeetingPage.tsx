@@ -863,15 +863,20 @@ export default function NewMeetingPage({
   if (createdMeeting) {
     return (
       <section className="mm-page mm-new-page" aria-label={t("newPageTitle")}>
-        <h1 className="mm-title">{t("recordingPendingTitle")}</h1>
-        <p>{t("recordingPendingBody")}</p>
+        <h1 className="mm-title">{t(audioSession?.error?.code === "recording_not_saved" ? "recordingLostTitle" : "recordingPendingTitle")}</h1>
+        <p>{t(audioSession?.error?.code === "recording_not_saved" ? "recordingLostBody" : "recordingPendingBody")}</p>
         {submitError ? <ErrorNotice>{submitError}</ErrorNotice> : null}
         <div className="mm-live-transcript-actions">
-          <Button variant="primary" loading={savePending} disabled={commandPending} onClick={() => void finishPendingRecording(false)}>
-            {t("retryRecordingSave")}
-          </Button>
+          {audioSession?.error?.code !== "recording_not_saved" ? (
+            <Button variant="primary" loading={savePending} disabled={commandPending} onClick={() => void finishPendingRecording(false)}>
+              {t("retryRecordingSave")}
+            </Button>
+          ) : null}
           <Button variant="secondary" disabled={savePending || commandPending} onClick={() => void finishPendingRecording(true)}>
             {t("discardRecordingAndOpen")}
+          </Button>
+          <Button variant="ghost" disabled={savePending || commandPending} onClick={() => onCreated(createdMeeting)}>
+            {t(audioSession?.error?.code === "recording_not_saved" ? "openWithCleanupPending" : "openWithUnknownRecording")}
           </Button>
         </div>
       </section>
