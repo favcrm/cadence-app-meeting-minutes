@@ -14,7 +14,7 @@ import {
   type DragEvent,
   type FormEvent,
 } from "react";
-import { channel, useAudioSession, useCanAudioCapture } from "../../bridge/channel";
+import { channel, useAudioSession, useCanAudioCapture, useCanAudioRetention } from "../../bridge/channel";
 import type { DisplayScope } from "../../bridge/scope";
 import {
   measureArgsBytes,
@@ -154,11 +154,13 @@ export default function NewMeetingPage({
 }) {
   const { locale, t } = useMinutesText();
   const canAudioCapture = useCanAudioCapture();
+  const canAudioRetention = useCanAudioRetention();
   const audioSession = useAudioSession();
 
   const [mode, setMode] = useState<CaptureMode>(() => (canAudioCapture ? "record" : "paste"));
   const [userPickedMode, setUserPickedMode] = useState<boolean>(false);
   const [language, setLanguage] = useState<LanguageChoice>("auto");
+  const [retainAudio, setRetainAudio] = useState(false);
   const wireLanguage: ScreenAudioLanguage = language === "auto" ? "" : language;
 
   const [createdAtIso] = useState<string>(() => new Date().toISOString());
@@ -175,11 +177,13 @@ export default function NewMeetingPage({
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [commandPending, setCommandPending] = useState<boolean>(false);
   const [savePending, setSavePending] = useState<boolean>(false);
+  const [createdMeeting, setCreatedMeeting] = useState<MeetingRecord | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const liveScrollRef = useRef<HTMLDivElement>(null);
   const trackerRef = useRef<TranscriptTrackerState>(createInitialTrackerState());
+  const retentionStartedRef = useRef(false);
   const [stickToBottom, setStickToBottom] = useState<boolean>(true);
 
   const applyAudioSnapshot = (
@@ -333,12 +337,20 @@ export default function NewMeetingPage({
     setSavePending(true);
     setSubmitError(null);
     try {
-      const response = await serviceCall(scope, "records.create", {
-        record_id: createMeetingId(),
-        profile: next.profile,
-        consent_provenance: { method: "screen_form" },
-      });
-      const created = parseMeetingShowResponse(response);
+      let created = createdMeeting;
+      if (!created) {
+        const response = await serviceCall(scope, "records.create", {
+          record_id: createMeetingId(),
+          profile: next.profile,
+          consent_provenance: { method: "screen_form" },
+        });
+        created = parseMeetingShowResponse(response);
+        if (retentionStartedRef.current) setCreatedMeeting(created);
+      }
+      if (retentionStartedRef.current) {
+        await channel.audioRecording(scope, { action: "commit", record_id: created.id });
+        retentionStartedRef.current = false;
+      }
       onCreated(created);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Save refused");
@@ -356,7 +368,12 @@ export default function NewMeetingPage({
     trackerRef.current = createInitialTrackerState();
     setCommandPending(true);
     try {
-      const snap = await channel.audioSession(scope, { action: "start", language: wireLanguage });
+      const snap = await channel.audioSession(scope, {
+        action: "start",
+        language: wireLanguage,
+        ...(retainAudio && canAudioRetention ? { retain_audio: true as const } : {}),
+      });
+      retentionStartedRef.current = retainAudio && canAudioRetention;
       applyAudioSnapshot(snap, { allowOverwriteManual: true });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to start recording");
@@ -444,6 +461,7 @@ export default function NewMeetingPage({
     setCommandPending(true);
     try {
       await channel.audioSession(scope, { action: "cancel" });
+      retentionStartedRef.current = false;
       trackerRef.current = createInitialTrackerState();
       setTranscript("");
       setTranscriptEditedManually(false);
@@ -525,6 +543,7 @@ export default function NewMeetingPage({
   const switchMode = (next: CaptureMode) => {
     if (audioBusy || commandPending || savePending) return;
     if ((next === "record" || next === "upload") && !canAudioCapture) return;
+    if (retentionStartedRef.current) return;
     setUserPickedMode(true);
     setSubmitError(null);
     setMode(next);
@@ -824,6 +843,41 @@ export default function NewMeetingPage({
 
   const sessionErrorText = audioSession?.error?.text ?? null;
 
+  const finishPendingRecording = async (discard: boolean) => {
+    if (!createdMeeting || savePending || commandPending) return;
+    setSavePending(true);
+    setSubmitError(null);
+    try {
+      await channel.audioRecording(scope, discard
+        ? { action: "cancel" }
+        : { action: "commit", record_id: createdMeeting.id });
+      retentionStartedRef.current = false;
+      onCreated(createdMeeting);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : t("recordingPendingBody"));
+    } finally {
+      setSavePending(false);
+    }
+  };
+
+  if (createdMeeting) {
+    return (
+      <section className="mm-page mm-new-page" aria-label={t("newPageTitle")}>
+        <h1 className="mm-title">{t("recordingPendingTitle")}</h1>
+        <p>{t("recordingPendingBody")}</p>
+        {submitError ? <ErrorNotice>{submitError}</ErrorNotice> : null}
+        <div className="mm-live-transcript-actions">
+          <Button variant="primary" loading={savePending} disabled={commandPending} onClick={() => void finishPendingRecording(false)}>
+            {t("retryRecordingSave")}
+          </Button>
+          <Button variant="secondary" disabled={savePending || commandPending} onClick={() => void finishPendingRecording(true)}>
+            {t("discardRecordingAndOpen")}
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="mm-page mm-new-page" aria-label={t("newPageTitle")}>
       <div className="mm-page-topbar">
@@ -855,7 +909,7 @@ export default function NewMeetingPage({
               className="mm-mode-tab"
               aria-selected={mode === "record"}
               data-active={mode === "record" ? "true" : undefined}
-              disabled={!canAudioCapture || audioBusy || commandPending || savePending}
+              disabled={!canAudioCapture || audioBusy || commandPending || savePending || retentionStartedRef.current}
               onClick={() => switchMode("record")}
             >
               <MicIcon />
@@ -868,7 +922,7 @@ export default function NewMeetingPage({
               className="mm-mode-tab"
               aria-selected={mode === "upload"}
               data-active={mode === "upload" ? "true" : undefined}
-              disabled={!canAudioCapture || audioBusy || commandPending || savePending}
+              disabled={!canAudioCapture || audioBusy || commandPending || savePending || retentionStartedRef.current}
               onClick={() => switchMode("upload")}
             >
               <UploadIcon />
@@ -881,7 +935,7 @@ export default function NewMeetingPage({
               className="mm-mode-tab"
               aria-selected={mode === "paste"}
               data-active={mode === "paste" ? "true" : undefined}
-              disabled={audioBusy || commandPending || savePending}
+              disabled={audioBusy || commandPending || savePending || retentionStartedRef.current}
               onClick={() => switchMode("paste")}
             >
               <span>{t("modePasteTranscript")}</span>
@@ -937,6 +991,16 @@ export default function NewMeetingPage({
                   active={sessionPhase === "recording"}
                   label={t("voiceMeterLabel")}
                 />
+
+                {canAudioRetention && sessionPhase === "idle" && !transcript.trim() ? (
+                  <div className="mm-retention-option">
+                    <label>
+                      <input type="checkbox" checked={retainAudio} onChange={(event) => setRetainAudio(event.target.checked)} aria-describedby="mm-recording-retention-hint" />
+                      <span>{t("saveRecordingOption")}</span>
+                    </label>
+                    <p id="mm-recording-retention-hint" className="mm-muted-copy">{t("saveRecordingHint")}</p>
+                  </div>
+                ) : null}
 
                 {sessionPhase === "idle" && !transcript.trim() ? (
                   <div className="mm-recorder-idle-row">

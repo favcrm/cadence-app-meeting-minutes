@@ -1,6 +1,8 @@
 import { ApiError } from "@cadence/screen-ui";
 import {
   createScreenBridge,
+  type ScreenAudioRecordingCommand,
+  type ScreenAudioRecordingResult,
   type ScreenAudioSessionCommand,
   type ScreenAudioSessionSnapshot,
   type ScreenBridge,
@@ -86,6 +88,7 @@ export class Channel {
   }
 
   canAudioCapture = (): boolean => this.bridge.canAudioCapture();
+  canAudioRetention = (): boolean => this.bridge.canAudioRetention();
 
   async audioSession(
     scope: DisplayScope,
@@ -95,6 +98,13 @@ export class Channel {
     this.latestAudioSession = snapshot;
     for (const listener of this.audioListeners) listener();
     return snapshot;
+  }
+
+  audioRecording(
+    scope: DisplayScope,
+    command: ScreenAudioRecordingCommand,
+  ): Promise<ScreenAudioRecordingResult> {
+    return this.bridge.audioRecording(scope, command);
   }
 
   call<T = unknown, K extends keyof CallArgs = keyof CallArgs>(
@@ -135,6 +145,10 @@ export const channel = createChannel();
 
 export function useCanAudioCapture(): boolean {
   return useSyncExternalStore(channel.subscribe, channel.canAudioCapture);
+}
+
+export function useCanAudioRetention(): boolean {
+  return useSyncExternalStore(channel.subscribe, channel.canAudioRetention);
 }
 
 export function useAudioSession(): ScreenAudioSessionSnapshot | null {

@@ -10,6 +10,7 @@ import {
   Notice,
 } from "@cadence/screen-ui";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { channel, useCanAudioRetention } from "../../bridge/channel";
 import type { DisplayScope } from "../../bridge/scope";
 import { serviceCall } from "../../bridge/services";
 import { useMinutesText } from "./i18n";
@@ -77,6 +78,7 @@ export default function MeetingDetailPage({
   onRecordUpdated: (updated: MeetingRecord) => void;
 }) {
   const { locale, t } = useMinutesText();
+  const canAudioRetention = useCanAudioRetention();
 
   const [record, setRecord] = useState<MeetingRecord | null>(initialRecord);
   const [loading, setLoading] = useState<boolean>(!initialRecord);
@@ -95,6 +97,9 @@ export default function MeetingDetailPage({
   const [transcriptFilter, setTranscriptFilter] = useState<string>("");
   const [highlightedTs, setHighlightedTs] = useState<string | null>(null);
   const [copiedTranscript, setCopiedTranscript] = useState<boolean>(false);
+  const [recordingState, setRecordingState] = useState<"idle" | "checking" | "available" | "none" | "error">("idle");
+  const [recordingPending, setRecordingPending] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const copyTimerRef = useRef<number | null>(null);
   const transcriptListRef = useRef<HTMLOListElement | null>(null);
 
@@ -128,6 +133,42 @@ export default function MeetingDetailPage({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordId, scope.installId, scope.digest]);
+
+  useEffect(() => {
+    if (!canAudioRetention || activeTab !== "transcript") {
+      setRecordingState("idle");
+      return;
+    }
+    let current = true;
+    setRecordingState("checking");
+    setRecordingError(null);
+    void channel.audioRecording(scope, { action: "exists", record_id: recordId }).then((result) => {
+      if (!current) return;
+      if (!("available" in result)) {
+        setRecordingState("error");
+        return;
+      }
+      setRecordingState(result.available ? "available" : "none");
+    }).catch(() => {
+      if (current) setRecordingState("error");
+    });
+    return () => { current = false; };
+  }, [activeTab, canAudioRetention, recordId, scope.installId, scope.digest, scope.contextId]);
+
+  const handleRecordingAction = async (action: "play" | "delete") => {
+    if (recordingPending) return;
+    setRecordingPending(true);
+    setRecordingError(null);
+    try {
+      await channel.audioRecording(scope, { action, record_id: recordId });
+      if (action === "delete") setRecordingState("none");
+    } catch (error) {
+      if (!(error instanceof ApiError && error.code === "cancelled"))
+        setRecordingError(error instanceof Error ? error.message : t("recordingStatusError"));
+    } finally {
+      setRecordingPending(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== "transcript" || !highlightedTs || !transcriptListRef.current) return;
@@ -897,6 +938,25 @@ export default function MeetingDetailPage({
                 </div>
               ) : activeTab === "transcript" ? (
                 <div className="mm-detail-stack">
+                  {recordingState === "available" ? (
+                    <section className="card mm-detail-card" aria-label={t("recordingAvailable")}>
+                      <div className="mm-live-transcript-head">
+                        <h2 className="mm-section-kicker">{t("recordingAvailable")}</h2>
+                        <div className="mm-live-transcript-actions">
+                          <Button size="sm" variant="secondary" loading={recordingPending} onClick={() => void handleRecordingAction("play")}>
+                            {t("playRecording")}
+                          </Button>
+                          {canUpdate ? (
+                            <Button size="sm" variant="secondary" disabled={recordingPending} onClick={() => void handleRecordingAction("delete")}>
+                              {t("deleteRecording")}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </section>
+                  ) : null}
+                  {recordingState === "error" ? <ErrorNotice>{t("recordingStatusError")}</ErrorNotice> : null}
+                  {recordingError ? <ErrorNotice>{recordingError}</ErrorNotice> : null}
                   {record.profile.transcript.trim() ? (
                     <section
                       className="card mm-live-transcript-card mm-transcript-panel-card"

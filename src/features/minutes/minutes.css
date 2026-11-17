@@ -347,6 +347,17 @@
   border-left-color: var(--color-warn);
 }
 
+.mm-retention-option {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.mm-retention-option label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .mm-recorder-head {
   display: flex;
   flex-wrap: wrap;
