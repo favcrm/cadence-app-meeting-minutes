@@ -997,13 +997,19 @@ export default function NewMeetingPage({
                   label={t("voiceMeterLabel")}
                 />
 
-                {canAudioRetention && sessionPhase === "idle" && !transcript.trim() ? (
+                {sessionPhase === "idle" && !transcript.trim() ? (
                   <div className="mm-retention-option">
-                    <label>
-                      <input type="checkbox" checked={retainAudio} onChange={(event) => setRetainAudio(event.target.checked)} aria-describedby="mm-recording-retention-hint" />
-                      <span>{t("saveRecordingOption")}</span>
-                    </label>
-                    <p id="mm-recording-retention-hint" className="mm-muted-copy">{t("saveRecordingHint")}</p>
+                    {canAudioRetention ? (
+                      <>
+                        <label>
+                          <input type="checkbox" checked={retainAudio} onChange={(event) => setRetainAudio(event.target.checked)} aria-describedby="mm-recording-retention-hint" />
+                          <span>{t("saveRecordingOption")}</span>
+                        </label>
+                        <p id="mm-recording-retention-hint" className="mm-muted-copy">{t("saveRecordingHint")}</p>
+                      </>
+                    ) : (
+                      <p className="mm-muted-copy">{t("saveRecordingUnavailable")}</p>
+                    )}
                   </div>
                 ) : null}
 

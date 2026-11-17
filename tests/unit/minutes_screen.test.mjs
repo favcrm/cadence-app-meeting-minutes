@@ -745,6 +745,7 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     await waitFor(() => container.querySelector("#mm-btn-start-recording") !== null);
     const createForm = container.querySelector("#mm-create-form");
     expect(createForm).toBeTruthy();
+    expect(container.textContent).toMatch(/saving recordings.*unavailable.*record and transcribe/i);
 
     // Zero upfront text inputs: optional Title & Attendees stay collapsed inside <details>.
     const optionalDetails = createForm.querySelector("details.mm-optional-settings");
