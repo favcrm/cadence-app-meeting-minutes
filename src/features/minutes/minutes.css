@@ -774,6 +774,10 @@
   flex: 1;
 }
 
+.mm-detail-duration {
+  white-space: nowrap;
+}
+
 .mm-detail-pills {
   display: flex;
   flex-wrap: wrap;

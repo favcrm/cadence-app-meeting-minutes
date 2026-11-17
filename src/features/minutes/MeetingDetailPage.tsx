@@ -490,9 +490,14 @@ export default function MeetingDetailPage({
               <h1 className="mm-title mm-detail-title">{record.profile.title}</h1>
               <p className="mm-subtitle num">
                 {formatHeldAt(record.profile.held_at, locale)}
-                {formatDuration(record.profile.duration_seconds, locale)
-                  ? ` · ${formatDuration(record.profile.duration_seconds, locale)}`
-                  : ""}
+                {formatDuration(record.profile.duration_seconds, locale) ? (
+                  <>
+                    {" · "}
+                    <span className="mm-detail-duration">
+                      {formatDuration(record.profile.duration_seconds, locale)}
+                    </span>
+                  </>
+                ) : null}
                 {record.profile.participants.length > 0
                   ? ` · ${record.profile.participants.join(", ")}`
                   : ""}
