@@ -1,7 +1,7 @@
 ---
 app: meeting-minutes
 title: Meeting minutes
-version: '0.7.2'
+version: '0.7.3'
 summary: Keep meeting transcripts, summaries, decisions and follow-ups in workspace records, with host audio capture and approved assistant consolidation.
 needs:
   connections: []
@@ -17,7 +17,7 @@ listing:
   about: Meeting minutes keeps full transcripts, executive summaries, source-backed decisions and follow-ups in workspace storage. Start a 1-click live recording or upload an audio file when the workspace enables host audio transcription, paste a transcript in the screen, or ask the workspace assistant to draft or refine minutes; every assistant write stays an owner-approved proposal, and a title you type is never overwritten. This bundle never calls external speech services directly or sends external messages.
   can:
     - Record live audio or upload audio files via host-mediated transcription
-    - Save full meeting transcripts, summaries, decisions and follow-ups up to 256 KiB per meeting
+    - Save meeting transcripts, summaries, decisions and follow-ups without silent transcript clipping
     - Keep user-chosen titles intact while naming untitled meetings from the discussion
     - Track open and completed follow-ups across all meetings without inventing owners or dates
     - Propose source-backed minutes updates from the workspace assistant with revision history
@@ -33,7 +33,7 @@ listing:
 
 # Meeting minutes
 
-This bundle installs `meeting-minutes` (`0.7.2`) with an app-owned screen
+This bundle installs `meeting-minutes` (`0.7.3`) with an app-owned screen
 (`screens/minutes/`, `app-screens/v2`) built on the pinned `@cadence/app-kit`
 bridge and `@cadence/screen-ui` controls, an app-owned `app-storage/v1` schema
 (`app-storage.json` and `storage/001-initial.json`), `app-chat/v1` contexts for

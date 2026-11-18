@@ -245,7 +245,7 @@ export const EN_TEXT = {
   createEmptyError: "Record, upload, paste a transcript, or enter a meeting title before saving.",
   wireBudgetUsage: "Screen save payload: {used} / {max} bytes",
   wireBudgetExceeded:
-    "This meeting payload ({used} bytes) exceeds the {max}-byte screen save limit. Shorten the pasted transcript or split long sessions.",
+    "This meeting exceeds the save limit ({used} / {max} bytes). Nothing was saved. Copy the transcript before splitting it across meetings.",
   staleConflictError:
     "This meeting was updated elsewhere. Reopen the meeting to review the latest revision before saving.",
 } as const;
@@ -489,7 +489,7 @@ export const ZH_HK_TEXT: Record<MinutesTextKey, string> = {
   createEmptyError: "儲存前請錄音、上載音訊、貼上逐字稿或輸入會議標題。",
   wireBudgetUsage: "畫面儲存負載：{used} / {max} 位元組",
   wireBudgetExceeded:
-    "此會議資料（{used} 位元組）超出畫面儲存的 {max} 位元組上限，請精簡貼上的逐字稿或分拆儲存。",
+    "此會議超出儲存上限（{used} / {max} 位元組）。未有儲存任何變更。請先複製逐字稿，再分拆成多個會議紀錄。",
   staleConflictError: "此會議紀錄剛在其他地方更新。請重新開啟會議以檢視最新版本。",
 };
 

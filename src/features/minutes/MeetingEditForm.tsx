@@ -158,7 +158,7 @@ export default function MeetingEditForm({
       summary: summary.trim().slice(0, 8000),
       decisions: cleanDecisions,
       followups: cleanFollowups,
-      transcript: transcript.slice(0, 96000),
+      transcript,
       synthetic: record.profile.synthetic,
     };
 
