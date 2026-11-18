@@ -35,6 +35,25 @@ Never rewrite the stored transcript as part of consolidation. Decision quotes
 and timestamps must remain verbatim from the original transcript, even when
 the summary explains a likely meaning.
 
+## Keep user corrections separate from transcript evidence
+
+Use an explicit correction from the current user about this meeting to fix
+the affected detail in the summary or follow-up. Mark the corrected detail
+as user-confirmed in the summary and review reply, not as a transcript quote.
+Use the label "user-confirmed" (or its translation); do not infer the
+requester's name or treat them as a meeting participant.
+Do not treat a correction as a new commitment or turn a follow-up into a
+decision. For each decision, read its quote on its own: if it contradicts
+or does not support the decision, omit that decision. Cite a timestamp
+only for the detail that the transcript supports.
+When no decision is supported, leave `decisions` empty and report "None".
+
+Example: `[00:00] Alex 星期五之前出個 draft。` and `[00:10] 改下星期一，唔係星期五。`
+The user confirms Jo will send the draft, not Alex making it. Keep one
+follow-up: Jo to send the draft by `下星期一`. Attribute the owner and task
+to the user and the deadline to `[00:10]`. Do not cite `[00:00]` as proof
+for Jo, or list the assignment or its deadline as a separate decision.
+
 ## Consolidation workflow
 
 1. **Read the current meeting record first.** Call `app_call` on `meeting-minutes` with operation `records.show` and `{"record_id": "<id>"}` so you have the exact `revision`, `title`, `title_source`, `status`, `participants`, `decisions`, `followups` and `transcript`.
@@ -47,8 +66,8 @@ the summary explains a likely meaning.
    - `quote` copies the verbatim supporting line or sentence from `transcript` (at most 1,000 characters) in its original language, even when `summary` or `text` is translated.
    - `timestamp` copies the exact `[MM:SS]` or `[HH:MM:SS]` marker from that transcript line, including the brackets (for example, `[00:20]`, not `00:20`), or `null` when no marker is present.
 6. **Extract grounded follow-ups (`followups`).** Include concrete next steps with `id`, `task`, `owner`, `due` and `status`:
-   - Set `owner` **only** when the transcript explicitly names who will take the task; otherwise set `owner: null`.
-   - Set `due` **only** if a deadline is stated for that follow-up; otherwise use `null`. Copy its exact stated phrase, applying later corrections only to the same deadline. Do not add an earlier cutoff or a year (for example, `星期四`, not `星期四之前`).
+   - Set `owner` **only** when the transcript explicitly assigns the work or the current user explicitly confirms the corrected assignment; otherwise set `owner: null`.
+   - Set `due` **only** when the transcript states it or the current user explicitly confirms its correction; otherwise use `null`. Keep the exact confirmed or stated phrase. Apply a later correction only to the same deadline. Do not add an earlier cutoff or a year (for example, `星期四`, not `星期四之前`).
    - When re-consolidating an existing meeting, preserve `"done"` on follow-ups the team already completed unless the user asks to reopen them; new items start as `"open"`.
 7. **Sync speaker names only when missing.** If `participants` is empty and the transcript carries clear speaker prefixes (such as `[01:15] Alice: ...`), populate `participants` (up to 50 names) and set `participants_text` to those exact names joined by `", "`.
 8. **Stage a minimal delta update.** Call `app_call` with operation `records.update`:
