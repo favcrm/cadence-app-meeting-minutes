@@ -40,10 +40,13 @@ the summary explains a likely meaning.
 Use an explicit correction from the current user about this meeting to fix
 the affected detail in the summary or follow-up. Mark the corrected detail
 as user-confirmed in the summary and review reply, not as a transcript quote.
+Use the label "user-confirmed" (or its translation); do not infer the
+requester's name or treat them as a meeting participant.
 Do not treat a correction as a new commitment or turn a follow-up into a
 decision. For each decision, read its quote on its own: if it contradicts
 or does not support the decision, omit that decision. Cite a timestamp
 only for the detail that the transcript supports.
+When no decision is supported, leave `decisions` empty and report "None".
 
 Example: `[00:00] Alex 星期五之前出個 draft。` and `[00:10] 改下星期一，唔係星期五。`
 The user confirms Jo will send the draft, not Alex making it. Keep one
