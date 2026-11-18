@@ -31,8 +31,8 @@
 
 - `id`: non-empty string (`1..64` chars), such as `"fu-1"`, `"fu-2"`.
 - `task`: actionable description (`1..1000` chars).
-- `owner`: string (`1..120` chars) **only** if explicitly assigned in the transcript, else `null`. Never use `"TBD"` or `"Unassigned"` strings — `null` renders localized unassigned badges in the screen.
-- `due`: string (`<= 40` chars, ISO date preferred when known, or the exact stated phrase such as `"Friday"`) **only** if explicitly stated in the transcript, else `null`.
+- `owner`: string (`1..120` chars) only if the transcript explicitly assigns the work or the current user confirms the corrected assignment; otherwise `null`. Never use `"TBD"` or `"Unassigned"` strings — `null` renders localized unassigned badges in the screen.
+- `due`: string (`<= 40` chars) only if the transcript states the deadline or the current user confirms its correction; otherwise `null`. Copy the stated or confirmed wording without converting a relative phrase to an absolute date.
 - `status`: `"open"` or `"done"`.
 
 ## Write-rule invariants

@@ -16,6 +16,7 @@ Structured meeting notes, decisions, follow-ups, inline live audio recording, mu
 - **Bilingual UI**: Full English (`en`) and written Traditional Chinese (`zh-HK` / `zh-TW`) parity.
 - **Agent & MCP skills (`app/skills/` + `app/app-chat.json`)**:
   - `minutes-consolidation`, `transcript-intake`, and `followup-management` skill packages discoverable via `app_describe` and readable via `app_skill` across hosted chat, CLI, and `/mcp/workspace`.
+  - Consolidation can use explicit user corrections in the draft summary and follow-ups while keeping the captured transcript unchanged. Decisions still require a supporting transcript quote, and the update waits for owner approval.
   - `app-chat/v1` contexts aligned with all three screen navigation sections (`all`, `new`, `followups`).
 
 ## Commands
