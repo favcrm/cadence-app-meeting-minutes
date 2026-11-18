@@ -265,7 +265,7 @@ export default function NewMeetingPage({
     durationSeconds?: number | null;
     heldAt?: string | null;
   }) => {
-    const finalTranscript = (override?.transcriptText ?? transcript).slice(0, 96000);
+    const finalTranscript = override?.transcriptText ?? transcript;
     const { title, titleSource } = resolveTitleSubmission({
       typedTitle,
       transcript: finalTranscript,

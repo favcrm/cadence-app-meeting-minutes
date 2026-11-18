@@ -658,6 +658,46 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     ]);
   });
 
+  test("counts and preserves the full over-budget transcript on create and edit", async () => {
+    const { container, calls } = mountWithMockHost({
+      route: { section: "new", view: "list", record_id: null, segment_id: null },
+    });
+    const original = "會".repeat(96_000);
+    const complete = `${original}\n[29:57] 唔好發送。`;
+    const short = "[00:00] 唔好發送個 draft。\n[00:10] QA 簽核後再 send。";
+
+    async function refuseOversizeThenSave(form, verb) {
+      const transcript = form.querySelector("textarea.mm-mono-textarea");
+      setReactValue(transcript, original);
+      const meter = () => form.querySelector(".mm-wire-meter")?.textContent ?? "";
+      await waitFor(() => meter().includes("288"));
+      const before = meter();
+      setReactValue(transcript, complete);
+      await waitFor(() => transcript.value === complete);
+      expect(meter()).not.toBe(before);
+
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await waitFor(() => form.textContent.includes("Nothing was saved"));
+      expect(transcript.value).toBe(complete);
+      expect(calls.filter((call) => call.verb === verb)).toEqual([]);
+
+      setReactValue(transcript, short);
+      await waitFor(() => transcript.value === short && !meter());
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await waitFor(() => calls.some((call) => call.verb === verb));
+      expect(calls.find((call) => call.verb === verb).args.profile.transcript).toBe(short);
+    }
+
+    await waitFor(() => container.querySelector("#mm-create-form") !== null);
+    await refuseOversizeThenSave(container.querySelector("#mm-create-form"), "records.create");
+    const editButton = () =>
+      [...container.querySelectorAll("button")].find((button) => button.textContent.trim() === "Edit minutes");
+    await waitFor(editButton);
+    editButton().click();
+    await waitFor(() => container.querySelector("#mm-edit-form") !== null);
+    await refuseOversizeThenSave(container.querySelector("#mm-edit-form"), "records.update");
+  });
+
   test("renders Follow-ups section with Unassigned/No due date honesty and navigates back to Follow-ups from detail page", async () => {
     const r1 = makeRecord("mtg-1");
     const { container } = mountWithMockHost({
