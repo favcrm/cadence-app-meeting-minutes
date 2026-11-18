@@ -827,6 +827,66 @@ describe("Meeting minutes domain model & dedicated full-page screen interactions
     await waitFor(() => container.querySelector(".mm-detail-page") !== null);
   });
 
+  for (const mode of ["record", "upload"]) {
+    test(`incomplete ${mode} transcript cannot save until the missing segment is recovered`, async () => {
+      const { container, calls } = mountWithMockHost({
+        route: { section: "new", view: "list", record_id: null, segment_id: null },
+        audioCapture: true,
+        onAudioSession({ action }, { emitAudio }) {
+          const recovered = action === "retry";
+          const recording = action === "start";
+          const snap = makeAudioSnapshot({
+            mode,
+            phase: recording ? "recording" : "ready",
+            held_at: "2026-11-18T03:15:00Z",
+            elapsed_seconds: recording ? 10 : 12,
+            segments_total: recording ? 1 : 2,
+            segments_done: recovered ? 2 : 1,
+            segments_failed: recording || recovered ? 0 : 1,
+            transcript: recovered
+              ? "Send the draft.\nOnly after QA signs off."
+              : "Send the draft.",
+          });
+          emitAudio(snap);
+          return { ok: true, data: snap };
+        },
+      });
+
+      if (mode === "record") {
+        await waitFor(() => container.querySelector("#mm-btn-start-recording"));
+        container.querySelector("#mm-btn-start-recording").click();
+        await waitFor(() => container.querySelector("#mm-btn-stop-review"));
+        container.querySelector("#mm-btn-stop-review").click();
+      } else {
+        await waitFor(() => container.querySelector("#mm-tab-mode-upload"));
+        container.querySelector("#mm-tab-mode-upload").click();
+        await waitFor(() => container.querySelector("#mm-audio-file-input"));
+        const input = container.querySelector("#mm-audio-file-input");
+        const props = Object.keys(input).find((key) => key.startsWith("__reactProps$"));
+        await input[props].onChange({ target: { files: [new File(["audio"], "fixture.wav")] } });
+      }
+
+      const retry = () => container.querySelector("#mm-btn-retry-segments");
+      const save = () => container.querySelector("#mm-btn-save-minutes");
+      await waitFor(() => retry() && !retry().disabled && save());
+      expect(container.textContent).toContain("Transcript incomplete");
+      expect(container.textContent).toContain("Send the draft.");
+      expect(save().disabled).toBe(true);
+      expect(container.textContent).toContain("Retry the failed segments before saving.");
+      const form = container.querySelector("#mm-create-form");
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+      retry().click();
+      await waitFor(() => save() && !save().disabled && !retry());
+      expect(calls.some((call) => call.verb === "records.create")).toBe(false);
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await waitFor(() => calls.some((call) => call.verb === "records.create"));
+      const saved = calls.find((call) => call.verb === "records.create").args.profile.transcript;
+      expect(saved).toContain("Send the draft.");
+      expect(saved).toContain("Only after QA signs off.");
+    });
+  }
+
   test("uploads multi-format audio file via screen-audio.v2 with structured 45s timestamps and preserves file.lastModified as held_at", async () => {
     const { container, calls, audioCommands } = mountWithMockHost({
       records: [],

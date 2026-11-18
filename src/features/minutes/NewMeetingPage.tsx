@@ -244,6 +244,8 @@ export default function NewMeetingPage({
 
   const sessionPhase = audioSession?.phase ?? "idle";
   const audioBusy = isBusyAudioPhase(sessionPhase);
+  const hasFailedSegments = (audioSession?.segments_failed ?? 0) > 0;
+  const captureLocked = audioBusy || commandPending || savePending || hasFailedSegments;
 
   const dirty = Boolean(
     audioBusy ||
@@ -518,12 +520,12 @@ export default function NewMeetingPage({
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (audioBusy || commandPending || savePending) return;
+    if (captureLocked) return;
     void persistMeeting();
   };
 
   const switchMode = (next: CaptureMode) => {
-    if (audioBusy || commandPending || savePending) return;
+    if (captureLocked) return;
     if ((next === "record" || next === "upload") && !canAudioCapture) return;
     setUserPickedMode(true);
     setSubmitError(null);
@@ -551,7 +553,7 @@ export default function NewMeetingPage({
             : sessionPhase === "transcribing"
               ? t("phaseTranscribing")
               : sessionPhase === "ready"
-                ? t("phaseReady")
+                ? t(hasFailedSegments ? "phaseIncomplete" : "phaseReady")
                 : sessionPhase === "error"
                   ? t("phaseError")
                   : t("phaseIdle");
@@ -855,7 +857,7 @@ export default function NewMeetingPage({
               className="mm-mode-tab"
               aria-selected={mode === "record"}
               data-active={mode === "record" ? "true" : undefined}
-              disabled={!canAudioCapture || audioBusy || commandPending || savePending}
+              disabled={!canAudioCapture || captureLocked}
               onClick={() => switchMode("record")}
             >
               <MicIcon />
@@ -868,7 +870,7 @@ export default function NewMeetingPage({
               className="mm-mode-tab"
               aria-selected={mode === "upload"}
               data-active={mode === "upload" ? "true" : undefined}
-              disabled={!canAudioCapture || audioBusy || commandPending || savePending}
+              disabled={!canAudioCapture || captureLocked}
               onClick={() => switchMode("upload")}
             >
               <UploadIcon />
@@ -881,7 +883,7 @@ export default function NewMeetingPage({
               className="mm-mode-tab"
               aria-selected={mode === "paste"}
               data-active={mode === "paste" ? "true" : undefined}
-              disabled={audioBusy || commandPending || savePending}
+              disabled={captureLocked}
               onClick={() => switchMode("paste")}
             >
               <span>{t("modePasteTranscript")}</span>
@@ -895,6 +897,12 @@ export default function NewMeetingPage({
           {submitError ? <ErrorNotice>{submitError}</ErrorNotice> : null}
           {sessionErrorText && sessionErrorText !== submitError ? (
             <ErrorNotice>{sessionErrorText}</ErrorNotice>
+          ) : null}
+          {hasFailedSegments && !audioBusy ? (
+            <ErrorNotice>
+              {mode !== "record" || sessionPhase !== "ready" ? `${t("phaseIncomplete")}. ` : null}
+              {t("incompleteSaveNotice")}
+            </ErrorNotice>
           ) : null}
 
           {mode === "record" && canAudioCapture ? (
@@ -911,7 +919,10 @@ export default function NewMeetingPage({
               >
                 <div className="mm-recorder-head">
                   <div className="mm-recorder-status-group">
-                    <span className="mm-live-pill" data-phase={sessionPhase}>
+                    <span
+                      className="mm-live-pill"
+                      data-phase={sessionPhase === "ready" && hasFailedSegments ? "error" : sessionPhase}
+                    >
                       <span className="mm-live-dot" aria-hidden="true" />
                       <span>{phaseBadgeLabel}</span>
                     </span>
@@ -1040,7 +1051,7 @@ export default function NewMeetingPage({
                   </>
                 ) : (
                   <div className="mm-recorder-controls">
-                    {(audioSession?.segments_failed ?? 0) > 0 ? (
+                    {hasFailedSegments ? (
                       <Button
                         id="mm-btn-retry-segments"
                         variant="secondary"
@@ -1063,7 +1074,7 @@ export default function NewMeetingPage({
                       variant="primary"
                       type="submit"
                       loading={savePending}
-                      disabled={commandPending}
+                      disabled={commandPending || hasFailedSegments}
                     >
                       {t("createMinutes")}
                     </Button>
@@ -1184,7 +1195,7 @@ export default function NewMeetingPage({
                   {optionalSettingsDrawerless}
 
                   <div className="mm-editor-footer">
-                    {(audioSession?.segments_failed ?? 0) > 0 && !audioBusy ? (
+                    {hasFailedSegments && !audioBusy ? (
                       <Button
                         id="mm-btn-retry-segments"
                         variant="secondary"
@@ -1207,7 +1218,7 @@ export default function NewMeetingPage({
                       variant="primary"
                       type="submit"
                       loading={savePending}
-                      disabled={audioBusy || commandPending || !transcript.trim()}
+                      disabled={audioBusy || commandPending || hasFailedSegments || !transcript.trim()}
                     >
                       {t("createMinutes")}
                     </Button>
@@ -1265,6 +1276,7 @@ export default function NewMeetingPage({
                   variant="primary"
                   type="submit"
                   loading={savePending}
+                  disabled={hasFailedSegments}
                 >
                   {t("createMinutes")}
                 </Button>
