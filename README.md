@@ -1,4 +1,4 @@
-# Meeting minutes (`meeting-minutes` `0.7.4`)
+# Meeting minutes (`meeting-minutes` `0.7.5`)
 
 Structured meeting notes, decisions, follow-ups, inline live audio recording, multi-format audio file upload, and bundled agent/MCP skills for hosted Cadence workspaces.
 

@@ -10,7 +10,7 @@ import {
   Select,
   type DataTableColumn,
 } from "@cadence/screen-ui";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { admitted, type MinutesSection } from "../../bridge/channel";
 import { FrameNavigationAdapter, patchRoute } from "../../bridge/route";
 import { useScope, useScopeError } from "../../bridge/scope";
@@ -55,14 +55,21 @@ function MinutesScreenInner() {
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [localCreating, setLocalCreating] = useState<boolean>(false);
 
+  const scopeKey = snapshot
+    ? `${snapshot.scope.installId}:${snapshot.digest}:${snapshot.contextId}`
+    : "";
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+
   const loadMeetings = useCallback(
     async (cursor: string | null, query: string) => {
-      if (!snapshot) return;
+      const current = snapshotRef.current;
+      if (!current) return;
       setLoading(true);
       setListError(null);
       try {
         const trimmed = query.trim();
-        const raw = await serviceCall(snapshot.scope, "records.list", {
+        const raw = await serviceCall(current.scope, "records.list", {
           limit: PAGE_LIMIT,
           ...(cursor ? { cursor } : {}),
           ...(trimmed ? { query: trimmed } : {}),
@@ -77,13 +84,24 @@ function MinutesScreenInner() {
         setLoading(false);
       }
     },
-    [snapshot],
+    [scopeKey],
   );
 
   useEffect(() => {
-    if (!snapshot) return;
+    const trimmed = searchInput.trim().slice(0, 120);
+    if (trimmed === committedQuery) return;
+    const timer = setTimeout(() => {
+      setCursorStack([null]);
+      setCommittedQuery(trimmed);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchInput, committedQuery]);
+
+  useEffect(() => {
+    const current = snapshotRef.current;
+    if (!current || !scopeKey) return;
     if (currentCursor === null && committedQuery === "") {
-      const obs = snapshot.observations.find(
+      const obs = current.observations.find(
         (o) => o.operation === "records.list" && !o.args.query && !o.args.cursor,
       );
       if (obs) {
@@ -101,15 +119,15 @@ function MinutesScreenInner() {
       }
     }
     void loadMeetings(currentCursor, committedQuery);
-  }, [committedQuery, currentCursor, loadMeetings, snapshot]);
+  }, [committedQuery, currentCursor, loadMeetings, scopeKey]);
 
   useEffect(() => {
     return onWrite(() => {
-      if (snapshot) {
+      if (snapshotRef.current) {
         void loadMeetings(currentCursor, committedQuery);
       }
     });
-  }, [committedQuery, currentCursor, loadMeetings, snapshot]);
+  }, [committedQuery, currentCursor, loadMeetings]);
 
   if (!snapshot) {
     if (scopeErr) return <ErrorNotice>{scopeErr}</ErrorNotice>;
@@ -258,35 +276,39 @@ function MinutesScreenInner() {
     {
       key: "meeting",
       header: t("colMeeting"),
-      cell: (row) => (
-        <div className="mm-cell-primary">
-          <button
-            type="button"
-            className="lnk mm-row-link"
-            onClick={() => openMeeting(row.id, "all")}
-          >
-            {row.profile.title}
-          </button>
-          <div className="mm-cell-sub">
-            {row.profile.participants.length > 0
-              ? row.profile.participants.join(", ")
-              : t("noParticipants")}
-          </div>
-          <div className="mm-mobile-meta">
-            <span className="mm-cell-sub num">{formatHeldAt(row.profile.held_at, locale)}</span>
-            <TitleOriginBadge source={row.profile.title_source} />
-          </div>
-          {row.profile.tags.length > 0 ? (
-            <div className="mm-row-tags">
-              {row.profile.tags.map((tag) => (
-                <span key={tag} className="mm-tag-chip">
-                  #{tag}
-                </span>
-              ))}
+      cell: (row) => {
+        const dur = formatDuration(row.profile.duration_seconds, locale);
+        return (
+          <div className="mm-cell-primary">
+            <button
+              type="button"
+              className="lnk mm-row-link"
+              onClick={() => openMeeting(row.id, "all")}
+            >
+              {row.profile.title}
+            </button>
+            <div className="mm-row-meta">
+              {row.profile.participants.length > 0 ? (
+                <span className="mm-cell-sub">{row.profile.participants.join(", ")}</span>
+              ) : null}
+              <TitleOriginBadge source={row.profile.title_source} />
             </div>
-          ) : null}
-        </div>
-      ),
+            <div className="mm-mobile-meta">
+              <span className="mm-cell-sub num">{formatHeldAt(row.profile.held_at, locale)}</span>
+              {dur ? <span className="mm-cell-sub num">· {dur}</span> : null}
+            </div>
+            {row.profile.tags.length > 0 ? (
+              <div className="mm-row-tags">
+                {row.profile.tags.map((tag) => (
+                  <span key={tag} className="mm-tag-chip">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: "when",
@@ -300,11 +322,6 @@ function MinutesScreenInner() {
           </div>
         );
       },
-    },
-    {
-      key: "naming",
-      header: t("colNaming"),
-      cell: (row) => <TitleOriginBadge source={row.profile.title_source} />,
     },
     {
       key: "status",
@@ -332,78 +349,48 @@ function MinutesScreenInner() {
 
   return (
     <main className="app-outlet mm-outlet" data-locale={locale}>
-      <header className="mm-header">
-        <div className="mm-header-titles">
-          <h1 className="mm-title">{t("appTitle")}</h1>
-          <p className="mm-subtitle">{t("appSubtitle")}</p>
-        </div>
-        {canCreate ? (
-          <Button variant="primary" onClick={openCompose}>
-            {t("newMinutes")}
-          </Button>
-        ) : null}
-      </header>
-
       {!canCreate && !canUpdate ? (
         <Notice state="read-only">{t("readOnlyNotice")}</Notice>
       ) : null}
 
-      <nav className="app-outlet-tabs" aria-label={t("appTitle")}>
-        <button
-          type="button"
-          className="app-outlet-tab"
-          data-on={activeSection === "all" ? "" : undefined}
-          aria-current={activeSection === "all" ? "page" : undefined}
-          onClick={() => navigateSection("all")}
-        >
-          {t("sectionAll")}
-        </button>
-        {canCreate ? (
-          <button
-            type="button"
-            className="app-outlet-tab"
-            onClick={openCompose}
-          >
-            {t("sectionNew")}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="app-outlet-tab mm-tab-with-count"
-          data-on={activeSection === "followups" ? "" : undefined}
-          aria-current={activeSection === "followups" ? "page" : undefined}
-          onClick={() => navigateSection("followups")}
-        >
-          <span>{t("sectionFollowups")}</span>
-          {openFollowupsTotal > 0 ? (
-            <span className="mm-count-pill num">{openFollowupsTotal}</span>
-          ) : null}
-        </button>
-      </nav>
-
       {activeSection === "followups" ? (
-        loading && records.length === 0 ? (
-          <Loading>{t("loadingMeetings")}</Loading>
-        ) : listError ? (
-          <ErrorNotice
-            onRetry={() => void loadMeetings(currentCursor, committedQuery)}
-            retryLabel={t("retry")}
-          >
-            {listError}
-          </ErrorNotice>
-        ) : (
-          <FollowupsSection
-            scope={snapshot.scope}
-            meetings={records}
-            canUpdate={canUpdate}
-            onSelectMeeting={(id) => openMeeting(id, "followups")}
-            onMeetingUpdated={(updated) => {
-              setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-            }}
-          />
-        )
+        <section className="mm-list-section" aria-label={t("sectionFollowups")}>
+          <header className="mm-section-head">
+            <h3 className="text-cardtitle font-medium text-ink-100 mm-tab-with-count" data-outlet-heading>
+              <span>{t("sectionFollowups")}</span>
+              {openFollowupsTotal > 0 ? (
+                <span className="mm-count-pill num">{openFollowupsTotal}</span>
+              ) : null}
+            </h3>
+          </header>
+          {loading && records.length === 0 ? (
+            <Loading>{t("loadingMeetings")}</Loading>
+          ) : listError ? (
+            <ErrorNotice
+              onRetry={() => void loadMeetings(currentCursor, committedQuery)}
+              retryLabel={t("retry")}
+            >
+              {listError}
+            </ErrorNotice>
+          ) : (
+            <FollowupsSection
+              scope={snapshot.scope}
+              meetings={records}
+              canUpdate={canUpdate}
+              onSelectMeeting={(id) => openMeeting(id, "followups")}
+              onMeetingUpdated={(updated) => {
+                setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+              }}
+            />
+          )}
+        </section>
       ) : (
         <section className="mm-list-section" aria-label={t("sectionAll")}>
+          <header className="mm-section-head">
+            <h3 className="text-cardtitle font-medium text-ink-100" data-outlet-heading>
+              {t("appTitle")}
+            </h3>
+          </header>
           <div className="crm-toolbar mm-toolbar">
             <form className="mm-search-form" onSubmit={submitSearch}>
               <div className="mm-search-input-wrap">
@@ -418,10 +405,7 @@ function MinutesScreenInner() {
                   onChange={(e) => setSearchInput(e.target.value)}
                 />
               </div>
-              <Button type="submit" variant="secondary">
-                {t("searchSubmit")}
-              </Button>
-              {committedQuery ? (
+              {searchInput || committedQuery ? (
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -441,6 +425,11 @@ function MinutesScreenInner() {
               onChange={(val) => setStatusFilter(val as "all" | MeetingStatus)}
               aria-label={t("statusFilterLabel")}
             />
+            {canCreate ? (
+              <Button variant="primary" className="mm-create-btn" onClick={openCompose}>
+                {t("newMinutes")}
+              </Button>
+            ) : null}
           </div>
 
           {loading && records.length === 0 ? (
@@ -480,6 +469,12 @@ function MinutesScreenInner() {
                 tableClassName="mm-table mm-meetings-table"
                 rowProps={(row) => ({
                   "data-record-id": row.id,
+                  className: "mm-row-open",
+                  onClick: (e: { target: EventTarget }) => {
+                    if (!(e.target as HTMLElement).closest("button, input, a")) {
+                      openMeeting(row.id, "all");
+                    }
+                  },
                 })}
               />
               <ListPager

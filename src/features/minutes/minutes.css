@@ -1,10 +1,26 @@
 /* Meeting minutes screen styles — strictly composed on @cadence/screen-ui tokens */
 
+html[data-cadence-kit],
+html[data-cadence-kit] body {
+  background: transparent;
+}
+
 .mm-outlet {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 0.25rem 0.25rem 2rem;
+  padding-bottom: 2rem;
+}
+
+.mm-outlet :is(h1, h2, h3, h4)[data-outlet-heading]:focus {
+  outline: none;
+}
+
+.mm-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .mm-page {
@@ -104,7 +120,10 @@
 }
 
 .mm-toolbar {
-  justify-content: space-between;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
 }
 
@@ -113,8 +132,20 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  flex: 1 1 20rem;
-  min-width: min(18rem, 100%);
+  flex: 0 1 24rem;
+  min-width: min(14rem, 100%);
+}
+
+.mm-create-btn {
+  margin-left: auto;
+}
+
+.mm-row-open {
+  cursor: pointer;
+}
+
+.mm-row-open:hover {
+  background: var(--color-ink-800);
 }
 
 .mm-search-input-wrap {
@@ -185,6 +216,25 @@
   font-size: var(--text-label);
   color: var(--color-ink-400);
   line-height: 1.35;
+}
+
+.mm-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mm-row-meta .mm-badge {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-500);
+  font-weight: 400;
+}
+
+.mm-row-meta .mm-badge[data-origin="user"] {
+  color: var(--color-accent);
 }
 
 .mm-row-tags {
@@ -1420,10 +1470,16 @@
   }
 
   .mm-meetings-table th:nth-child(2),
-  .mm-meetings-table td:nth-child(2),
-  .mm-meetings-table th:nth-child(3),
-  .mm-meetings-table td:nth-child(3) {
+  .mm-meetings-table td:nth-child(2) {
     display: none;
+  }
+
+  .mm-search-form {
+    flex: 1 1 100%;
+  }
+
+  .mm-create-btn {
+    margin-left: 0;
   }
 
   .mm-followups-table th:nth-child(2),
