@@ -32,4 +32,4 @@ sh scripts/pre-push       # full local gate including archive determinism check
 
 ## Native vs Hosted Check
 
-`meeting-minutes` `0.7.1` requires `app-storage: [1]`, which is hosted-only. Running `cadence app check app --json` with Cadence `v0.3.22` exits `3` with the single `app-storage` contract refusal clause verified strictly by `.github/scripts/assert-app-check.py` and `.github/scripts/publish.mjs`.
+`meeting-minutes` `0.7.1` requires `app-storage: [1]`, which is hosted-only. Running `cadence app check app --json` with Cadence `v0.5.2` exits `3` with the single `app-storage` contract refusal clause verified strictly by `.github/scripts/assert-app-check.py` and `.github/scripts/publish.mjs`.
