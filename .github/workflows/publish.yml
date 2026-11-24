@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       cadence_version:
-        description: "Exact Cadence release whose checker supplies canonical digest/inventory (default: v0.3.22)"
+        description: "Exact Cadence release whose checker supplies canonical digest/inventory (default: v0.5.2)"
         required: false
         type: string
 
@@ -39,7 +39,7 @@ jobs:
 
       - name: Install the exact pinned Cadence CLI
         env:
-          CADENCE_VERSION: ${{ inputs.cadence_version || vars.CADENCE_TARGET_VERSION || 'v0.3.22' }}
+          CADENCE_VERSION: ${{ inputs.cadence_version || vars.CADENCE_TARGET_VERSION || 'v0.5.2' }}
         run: |
           set -euo pipefail
           version="${CADENCE_VERSION#v}"
@@ -47,7 +47,9 @@ jobs:
           curl --fail --location --retry 3 \
             "https://github.com/favcrm/cadence/releases/download/v${version}/${archive}" \
             --output /tmp/cadence.tgz
-          if [ "$version" = "0.3.22" ]; then
+          if [ "$version" = "0.5.2" ]; then
+            printf '%s  %s\n' b42fed8dbfec9ce92a681403b21ffe490c3d57870b058bc8482ef0fa1af2dc98 /tmp/cadence.tgz | sha256sum --check
+          elif [ "$version" = "0.3.22" ]; then
             printf '%s  %s\n' f52fc13fcf6b606ffbc63279162a435b67d562df8e455b05da4acf2677073dc4 /tmp/cadence.tgz | sha256sum --check
           fi
           mkdir -p /tmp/cadence-bin

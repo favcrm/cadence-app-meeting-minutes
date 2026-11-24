@@ -118,13 +118,13 @@ jobs:
         with:
           bun-version: "1.4.3"
 
-      - name: Install exact pinned Cadence CLI (v0.3.22)
+      - name: Install exact pinned Cadence CLI (v0.5.2)
         run: |
           set -euo pipefail
           curl --fail --location --retry 3 \
-            https://github.com/favcrm/cadence/releases/download/v0.3.22/cadence-v0.3.22-x86_64-linux.tar.gz \
+            https://github.com/favcrm/cadence/releases/download/v0.5.2/cadence-v0.5.2-x86_64-linux.tar.gz \
             --output "$RUNNER_TEMP/cadence-check.tgz"
-          printf '%s  %s\n' f52fc13fcf6b606ffbc63279162a435b67d562df8e455b05da4acf2677073dc4 "$RUNNER_TEMP/cadence-check.tgz" | sha256sum --check
+          printf '%s  %s\n' b42fed8dbfec9ce92a681403b21ffe490c3d57870b058bc8482ef0fa1af2dc98 "$RUNNER_TEMP/cadence-check.tgz" | sha256sum --check
           mkdir -p "$RUNNER_TEMP/cadence-check"
           tar -xzf "$RUNNER_TEMP/cadence-check.tgz" -C "$RUNNER_TEMP/cadence-check"
           BIN=$(dirname "$(find "$RUNNER_TEMP/cadence-check" -name cadence -type f | head -1)")
